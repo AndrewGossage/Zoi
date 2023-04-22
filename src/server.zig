@@ -59,7 +59,7 @@ pub const Server = struct {
         try response.appendSlice(&b);
         //print items
         std.debug.print("{s}\n", .{response.items});
-        // write to the stream - this is not working
+        // write to the stream
         const resp: []const u8 = response.items;
         _ = try conn.stream.write(resp);
     }
@@ -74,7 +74,7 @@ pub fn clean_buffer(buf: anytype, start: usize) !void {
     }
 }
 
-//this function does not work for messages sent over Chrome
+// parse the url from a tcp message
 pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
     var list = std.ArrayList(u8).init(allocator);
     var pos: usize = 1;
