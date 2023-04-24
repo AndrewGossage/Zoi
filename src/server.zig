@@ -27,9 +27,9 @@ pub const Server = struct {
 
         defer conn.stream.close();
 
-        //first buffer for reading messages second of sending them
+        //create buffer for reading messages
         var buf: [1024]u8 = undefined;
-        var b: [2048]u8 = undefined;
+        //var b: [2048]u8 = undefined;
 
         //get the path to the file
         const msg_size = try conn.stream.read(buf[0..]);
@@ -42,16 +42,22 @@ pub const Server = struct {
         std.debug.print("\nMessage:\n{s}\n", .{buf[0..msg_size]});
 
         //open the proper file
-        var er404 = try std.fs.cwd().openFile("404.html", .{ .mode = .read_only });
-        var file = std.fs.cwd().openFile(slash.items, .{ .mode = .read_only }) catch er404;
+        var file = std.fs.cwd().openFile(slash.items, .{ .mode = .read_only }) catch try std.fs.cwd().openFile("404.html", .{ .mode = .read_only });
+
         defer file.close();
+
+        // create a buffer the correct size for the file
+        const file_size = try file.getEndPos();
+        std.debug.print("\n\n\nFile size: {d}\n", .{file_size});
+        const b: []u8 = try allocator.alloc(u8, file_size);
+        defer allocator.free(b);
 
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
         defer response.deinit();
         //read the file
-        var foo = try std.os.read(file.handle, &b);
-        _ = try clean_buffer(&b, foo);
+        var foo = try std.os.read(file.handle, b);
+        //_ = try clean_buffer(&b, foo);
         //add status line
         var m = try std.fmt.allocPrint(allocator, "{d}", .{foo});
         try response.appendSlice("HTTP/1.1 200 OK\r\nContent-Length: ");
@@ -60,7 +66,7 @@ pub const Server = struct {
         try response.appendSlice("\r\n\r\n");
 
         //add page content
-        try response.appendSlice(&b);
+        try response.appendSlice(b);
         //print items
         std.debug.print("{s}\n", .{response.items});
         // write to the stream
