@@ -30,14 +30,14 @@ pub const Server = struct {
         var buf: [1024]u8 = undefined;
 
         //get the path to the file
-        const msg_size = try conn.stream.read(buf[0..]);
+        _ = try conn.stream.read(buf[0..]);
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         const allocator = gpa.allocator();
         const slash = try read_url(&buf, allocator);
         defer slash.deinit();
-
-        //print the message we have received
-        std.debug.print("\nMessage:\n{s}\n", .{buf[0..msg_size]});
+        if (!validate_status_line(&buf)) {
+            return;
+        }
 
         //open the proper file
         var file = std.fs.cwd().openFile(slash.items, .{ .mode = .read_only }) catch try std.fs.cwd().openFile("404.html", .{ .mode = .read_only });
@@ -46,7 +46,6 @@ pub const Server = struct {
 
         // create a buffer the correct size for the file
         const file_size = try file.getEndPos();
-        std.debug.print("\n\n\nFile size: {d}\n", .{file_size});
         const b: []u8 = try allocator.alloc(u8, file_size);
         defer allocator.free(b);
 
@@ -67,14 +66,12 @@ pub const Server = struct {
         try response.appendSlice(b);
 
         //print items
-        std.debug.print("{s}\n", .{response.items});
 
         // write to the stream
         const resp: []const u8 = response.items;
         _ = try conn.stream.write(resp);
     }
 };
-
 // add null characters to fill a buffer
 // prevents junk from displaying on screen
 pub fn clean_buffer(buf: anytype, start: usize) !void {
@@ -107,13 +104,23 @@ pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
         }
         end += 1;
     }
-    //print the url that we found
-    std.debug.print("url:{s}\n", .{list.items});
 
     //default to index.html for the home page
     if (eql(u8, list.items, "") or eql(u8, list.items, "Zoi")) {
         try list.appendSlice("index.html");
-        std.debug.print("Caught default url", .{});
     }
     return list;
+}
+// make sure we are getting a valide status line
+pub fn validate_status_line(buf: []u8) bool {
+    if (!(eql(u8, buf[0..5], "GET /") or eql(u8, buf[0..6], "POST /"))) return false;
+    const h = "HTTP/1.1\r\n";
+    var it = std.mem.window(u8, buf, h.len, 1);
+    while (it.next()) |slice| {
+        if (eql(u8, slice, h)) {
+            return true;
+        } else if (slice[0] == '\r') return false;
+    }
+
+    return true;
 }
