@@ -53,7 +53,11 @@ pub const Server = struct {
         var foo = try std.os.read(file.handle, &b);
         _ = try clean_buffer(&b, foo);
         //add status line
-        try response.appendSlice("HTTP/1.1 200 OK\r\nContent-Length: 2048\r\n\r\n");
+        var m = try std.fmt.allocPrint(allocator, "{d}", .{foo});
+        try response.appendSlice("HTTP/1.1 200 OK\r\nContent-Length: ");
+
+        try response.appendSlice(m);
+        try response.appendSlice("\r\n\r\n");
 
         //add page content
         try response.appendSlice(&b);
@@ -99,7 +103,7 @@ pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
     std.debug.print("url:{s}\n", .{list.items});
 
     //default to index.html for the home page
-    if (eql(u8, list.items, "")) {
+    if (eql(u8, list.items, "") or eql(u8, list.items, "Zoi")) {
         try list.appendSlice("index.html");
         std.debug.print("Caught default url", .{});
     }
