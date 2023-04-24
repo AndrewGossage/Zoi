@@ -24,12 +24,10 @@ pub const Server = struct {
     pub fn accept(self: *Server) !void {
         //connection over tcp
         const conn = try self.stream_server.accept();
-
         defer conn.stream.close();
 
         //create buffer for reading messages
         var buf: [1024]u8 = undefined;
-        //var b: [2048]u8 = undefined;
 
         //get the path to the file
         const msg_size = try conn.stream.read(buf[0..]);
@@ -55,29 +53,33 @@ pub const Server = struct {
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
         defer response.deinit();
+
         //read the file
         var foo = try std.os.read(file.handle, b);
-        //_ = try clean_buffer(&b, foo);
+
         //add status line
         var m = try std.fmt.allocPrint(allocator, "{d}", .{foo});
         try response.appendSlice("HTTP/1.1 200 OK\r\nContent-Length: ");
-
         try response.appendSlice(m);
         try response.appendSlice("\r\n\r\n");
 
         //add page content
         try response.appendSlice(b);
+
         //print items
         std.debug.print("{s}\n", .{response.items});
+
         // write to the stream
         const resp: []const u8 = response.items;
         _ = try conn.stream.write(resp);
     }
 };
+
+// add null characters to fill a buffer
+// prevents junk from displaying on screen
 pub fn clean_buffer(buf: anytype, start: usize) !void {
     var i = start;
-    // add null characters to fill a buffer
-    // prevents junk from displaying on screen
+
     while (i < buf.len) {
         buf[i] = 0;
         i += 1;
