@@ -5,6 +5,9 @@ const server_msg = "HTTP/1.1 200 OK\r\n\r\n";
 const eql = std.mem.eql;
 const Allocator = std.mem.Allocator;
 pub const Server = struct {
+    //create buffer for reading messages
+    message_buf: [1024]u8,
+
     stream_server: std.net.StreamServer,
 
     pub fn init(port: u16) !Server {
@@ -12,9 +15,10 @@ pub const Server = struct {
 
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
+        var buf: [1024]u8 = undefined;
 
         std.debug.print("Listening at port {}\n", .{port});
-        return Server{ .stream_server = server };
+        return Server{ .stream_server = server, .message_buf = buf };
     }
 
     pub fn deinit(self: *Server) void {
@@ -22,18 +26,20 @@ pub const Server = struct {
     }
 
     pub fn accept(self: *Server) !void {
+
         //connection over tcp
         const conn = try self.stream_server.accept();
         defer conn.stream.close();
 
-        //create buffer for reading messages
-        var buf: [1024]u8 = undefined;
+        var buf = self.message_buf;
+        try clean_buffer(&buf, 0);
 
         //get the path to the file
         _ = try conn.stream.read(buf[0..]);
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         const allocator = gpa.allocator();
         const slash = try read_url(&buf, allocator);
+
         defer slash.deinit();
         if (!validate_status_line(&buf)) {
             return;
@@ -54,10 +60,11 @@ pub const Server = struct {
         defer response.deinit();
 
         //read the file
-        var foo = try std.os.read(file.handle, b);
+        var file_data = try std.os.read(file.handle, b);
 
         //add status line
-        var m = try std.fmt.allocPrint(allocator, "{d}", .{foo});
+        var m = try std.fmt.allocPrint(allocator, "{d}", .{file_data});
+        defer allocator.free(m);
         try response.appendSlice("HTTP/1.1 200 OK\r\nContent-Length: ");
         try response.appendSlice(m);
         try response.appendSlice("\r\n\r\n");
