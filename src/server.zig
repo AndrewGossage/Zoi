@@ -34,33 +34,26 @@ pub const Server = struct {
         var buf = self.message_buf;
         try clean_buffer(&buf, 0);
 
-        //get the path to the file
+        //create allocator
         _ = try conn.stream.read(buf[0..]);
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         const allocator = gpa.allocator();
-        const slash = try read_url(&buf, allocator);
 
-        defer slash.deinit();
+        //fetch and validate url and status line
+        const url = try read_url(&buf, allocator);
+        defer url.deinit();
         if (!validate_status_line(&buf)) {
             return;
         }
-
-        //open the proper file
-        var file = std.fs.cwd().openFile(slash.items, .{ .mode = .read_only }) catch try std.fs.cwd().openFile("404.html", .{ .mode = .read_only });
-
-        defer file.close();
-
-        // create a buffer the correct size for the file
-        const file_size = try file.getEndPos();
-        const b: []u8 = try allocator.alloc(u8, file_size);
-        defer allocator.free(b);
 
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
         defer response.deinit();
 
-        //read the file
-        var file_data = try std.os.read(file.handle, b);
+        //read file to be returned
+        var b = try read_file(url.items, allocator);
+        defer allocator.free(b);
+        var file_data = b.len;
 
         //add status line
         var m = try std.fmt.allocPrint(allocator, "{d}", .{file_data});
@@ -71,8 +64,6 @@ pub const Server = struct {
 
         //add page content
         try response.appendSlice(b);
-
-        //print items
 
         // write to the stream
         const resp: []const u8 = response.items;
@@ -130,4 +121,17 @@ pub fn validate_status_line(buf: []u8) bool {
     }
 
     return true;
+}
+
+//read a file and return a buffer the same size as the file
+pub fn read_file(name: []u8, allocator: Allocator) ![]u8 {
+    var file = std.fs.cwd().openFile(name, .{ .mode = .read_only }) catch try std.fs.cwd().openFile("404.html", .{ .mode = .read_only });
+    defer file.close();
+
+    const file_size = try file.getEndPos();
+    const b: []u8 = try allocator.alloc(u8, file_size);
+
+    _ = try std.os.read(file.handle, b);
+
+    return b;
 }
