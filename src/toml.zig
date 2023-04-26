@@ -32,7 +32,9 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     it = std.mem.window(u8, t[pos..], key.len, 1);
     var found: bool = false;
     while (it.next()) |slice| {
-        if (eql(u8, slice, key)) {
+        // check if we found the key + the proper spaceing and
+        // equal sign
+        if (eql(u8, slice, key) and eql(u8, " = ", t[(it.index.? + key.len) .. it.index.? + 3 + key.len])) {
             pos = it.index.? + 3 + key.len;
             found = true;
         } else if (slice[0] == '[') {
