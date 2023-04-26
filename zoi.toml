@@ -1,2 +1,2 @@
 [server]
-port = 8080
+port = 8080 #this is read by main.zig

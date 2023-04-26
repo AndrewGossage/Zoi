@@ -45,7 +45,10 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     var end: usize = pos;
     // find the start of the path
     for (t[pos..]) |elem| {
-        if (elem == '\n') {
+        if (elem == '#') {
+            end -= 1;
+            break;
+        } else if (elem == '\n') {
             break;
         } else if (elem == '[') {
             return "";
