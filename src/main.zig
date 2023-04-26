@@ -1,8 +1,11 @@
 const std = @import("std");
 const s = @import("server.zig");
 const Server = s.Server;
+const toml = @import("toml.zig");
 pub fn server_loop() !void {
-    var server = try Server.init(8080);
+    const port = try toml.getPort();
+    std.debug.print("port: {}\n", .{port});
+    var server = try Server.init(port);
     defer server.deinit();
     while (true) {
         server.accept() catch |e| {

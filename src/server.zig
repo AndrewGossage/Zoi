@@ -109,7 +109,7 @@ pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
     }
     return list;
 }
-// make sure we are getting a valide status line
+// make sure we are getting a valid status line
 pub fn validate_status_line(buf: []u8) bool {
     if (!(eql(u8, buf[0..5], "GET /") or eql(u8, buf[0..6], "POST /"))) return false;
     const h = "HTTP/1.1\r\n";
@@ -124,7 +124,7 @@ pub fn validate_status_line(buf: []u8) bool {
 }
 
 //read a file and return a buffer the same size as the file
-pub fn read_file(name: []u8, allocator: Allocator) ![]u8 {
+pub fn read_file(name: anytype, allocator: Allocator) ![]u8 {
     var file = std.fs.cwd().openFile(name, .{ .mode = .read_only }) catch try std.fs.cwd().openFile("404.html", .{ .mode = .read_only });
     defer file.close();
 
