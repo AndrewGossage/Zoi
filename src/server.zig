@@ -94,6 +94,11 @@ pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
     }
     //find the end of the path and add appropriate characters
     var end: usize = 0;
+    if (pos > buf.len) {
+        try list.appendSlice("404.html");
+        return list;
+    }
+
     for (buf[pos..buf.len]) |elem| {
         if (elem == ' ') {
             break;
