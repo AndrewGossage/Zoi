@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="205.71753mm"
+   height="103.18378mm"
+   viewBox="0 0 205.71753 103.18378"
+   version="1.1"
+   id="svg5"
+   inkscape:export-filename="bitmap.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false" />
+  <defs
+     id="defs2">
+    <rect
+       x="61.114491"
+       y="229.91402"
+       width="557.19037"
+       height="406.73679"
+       id="rect173" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-1.3289703,-2.5415999)">
+    <text
+       xml:space="preserve"
+       transform="matrix(0.75825693,0,0,0.76349075,-46.974802,-205.74815)"
+       id="text171"
+       style="font-size:192px;white-space:pre;shape-inside:url(#rect173);display:inline;fill:#00ff00;stroke:#0aa54e;stroke-width:4.0252;stroke-opacity:1"><tspan
+         x="61.115234"
+         y="404.6101"
+         id="tspan5288"><tspan
+           style="font-family:Caladea;-inkscape-font-specification:Caladea;stroke:#0d56e7"
+           id="tspan5286">ZOI</tspan></tspan></text>
+  </g>
+</svg>

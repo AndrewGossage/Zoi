@@ -1,3 +1,45 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Oswald&family=Roboto&family=Ubuntu&display=swap');
+
+body{
+    font-family: 'Ubuntu', Helvetica, sans-serif;
+    font-size: 1.3em;
+}
+#logo{
+    max-width: 40%;
+    margin-top: 50px;
+    margin-bottom: 50px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+#barlogo{
+    height: 40px;
+    display: block;
+    
+    margin-right: auto;
+}
+
+#navbar{
+    height: 60px;
+    background-color: blue;
+}
+a:link{
+    float: right;
+    text-decoration: none;
+    
+}
+img{
+    max-height: 100%;
+}
 h1{
     color: green;
+    text-align: center;
+}
+h1, p{
+    max-width: 90%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+
 }

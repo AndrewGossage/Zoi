@@ -36,6 +36,7 @@ pub const Server = struct {
 
         //create allocator
         _ = try conn.stream.read(buf[0..]);
+        std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         const allocator = gpa.allocator();
 
