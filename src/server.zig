@@ -24,7 +24,23 @@ pub const Server = struct {
     pub fn deinit(self: *Server) void {
         self.stream_server.deinit();
     }
+    pub fn sendMessage(self: *Server, message: anytype, status: anytype, conn: anytype) !void {
+        _ = self;
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        const allocator = gpa.allocator();
+        //create the ArrayList for message
+        var response = std.ArrayList(u8).init(allocator);
+        defer response.deinit();
 
+        //add status line
+        var m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\nContent-Length: {d}", .{ status, message.len });
+        defer allocator.free(m);
+        try response.appendSlice(m);
+        try response.appendSlice("\r\n\r\n");
+        try response.appendSlice(message);
+        const resp: []const u8 = response.items;
+        _ = try conn.stream.write(resp);
+    }
     pub fn accept(self: *Server) !void {
 
         //connection over tcp
@@ -47,28 +63,11 @@ pub const Server = struct {
             return;
         }
 
-        //create the ArrayList for message
-        var response = std.ArrayList(u8).init(allocator);
-        defer response.deinit();
-
         //read file to be returned
         var b = try read_file(url.items, allocator);
         defer allocator.free(b);
-        var file_data = b.len;
-
-        //add status line
-        var m = try std.fmt.allocPrint(allocator, "{d}", .{file_data});
-        defer allocator.free(m);
-        try response.appendSlice("HTTP/1.1 200 OK\r\nContent-Length: ");
-        try response.appendSlice(m);
-        try response.appendSlice("\r\n\r\n");
-
-        //add page content
-        try response.appendSlice(b);
-
-        // write to the stream
-        const resp: []const u8 = response.items;
-        _ = try conn.stream.write(resp);
+        _ = b.len;
+        try self.sendMessage(b, "200 ok", conn);
     }
 };
 // add null characters to fill a buffer
