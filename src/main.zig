@@ -4,8 +4,9 @@ const Server = s.Server;
 const toml = @import("toml.zig");
 pub fn server_loop() !void {
     const port = try toml.getPort();
-    std.debug.print("port: {}\n", .{port});
-    var server = try Server.init(port);
+    var host: [4]u8 = undefined;
+    _ = try toml.getHost(&host);
+    var server = try Server.init(host, port);
     defer server.deinit();
     while (true) {
         server.accept() catch |e| {

@@ -15,6 +15,32 @@ pub fn getPort() !u16 {
     defer allocator.free(value);
     return try std.fmt.parseInt(u16, value, 0);
 }
+pub fn isDigit(char: u8) bool {
+    const digits = "1234567890";
+    for (digits) |digit| {
+        if (digit == char) return true;
+    }
+    return false;
+}
+pub fn getHost(buf: []u8) !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    var value = try readKeyValue("[server]", "host", allocator);
+    defer allocator.free(value);
+
+    var pos: usize = 0;
+    for (0..4) |i| {
+        while (!isDigit(value[pos])) {
+            pos += 1;
+        }
+        var end = pos;
+        while (isDigit(value[end])) {
+            end += 1;
+        }
+        buf[i] = try std.fmt.parseInt(u8, value[pos..end], 0);
+        pos = end;
+    }
+}
 
 pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 {
     const t = try readToml(allocator);

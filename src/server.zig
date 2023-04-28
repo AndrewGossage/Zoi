@@ -10,14 +10,14 @@ pub const Server = struct {
 
     stream_server: std.net.StreamServer,
 
-    pub fn init(port: u16) !Server {
-        const address = std.net.Address.initIp4([4]u8{ 127, 0, 0, 1 }, port);
+    pub fn init(host: [4]u8, port: u16) !Server {
+        const address = std.net.Address.initIp4(host, port);
 
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
         var buf: [1024]u8 = undefined;
 
-        std.debug.print("Listening at port {}\n", .{port});
+        std.debug.print("Listening at {}.{}.{}.{}:{}\n", .{ host[0], host[1], host[2], host[3], port });
         return Server{ .stream_server = server, .message_buf = buf };
     }
 
