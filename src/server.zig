@@ -24,6 +24,7 @@ pub const Server = struct {
     pub fn deinit(self: *Server) void {
         self.stream_server.deinit();
     }
+
     pub fn sendMessage(self: *Server, message: anytype, status: anytype, conn: anytype) !void {
         _ = self;
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -41,6 +42,33 @@ pub const Server = struct {
         const resp: []const u8 = response.items;
         _ = try conn.stream.write(resp);
     }
+
+    //experimental feature
+    pub fn acceptAdv(self: *Server, router: anytype) !void {
+
+        //connection over tcp
+        const conn = try self.stream_server.accept();
+        defer conn.stream.close();
+
+        var buf = self.message_buf;
+        try clean_buffer(&buf, 0);
+
+        //create allocator
+        _ = try conn.stream.read(buf[0..]);
+        std.debug.print("message: \n{s}\n\n", .{buf});
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        const allocator = gpa.allocator();
+
+        //fetch and validate url and status line
+        const url = try read_url(&buf, allocator);
+        defer url.deinit();
+        if (!validate_status_line(&buf)) {
+            return;
+        }
+
+        try router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn });
+    }
+
     pub fn accept(self: *Server) !void {
 
         //connection over tcp
