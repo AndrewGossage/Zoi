@@ -33,17 +33,25 @@ fn worker(server: anytype) !void {
 }
 
 pub fn server_loop() !void {
+    const worker_count = try toml.getWorkerCount();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    const workers: []std.Thread = try allocator.alloc(std.Thread, worker_count);
+    defer allocator.free(workers);
+
     const port = try toml.getPort();
     var host: [4]u8 = undefined;
     _ = try toml.getHost(&host);
     var server = try Server.init(host, port);
     defer server.deinit();
-    const t1 = try std.Thread.spawn(.{}, worker, .{&server});
-    defer t1.join();
 
-    const t2 = try std.Thread.spawn(.{}, worker, .{&server});
-
-    defer t2.join();
+    for (0..worker_count) |i| {
+        std.debug.print("Spawning worker: {}\n", .{i + 1});
+        workers[i] = try std.Thread.spawn(.{}, worker, .{&server});
+    }
+    for (0..worker_count) |i| {
+        workers[i].join();
+    }
 }
 pub fn main() !void {
     try server_loop();

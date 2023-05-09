@@ -15,6 +15,15 @@ pub fn getPort() !u16 {
     defer allocator.free(value);
     return try std.fmt.parseInt(u16, value, 0);
 }
+
+pub fn getWorkerCount() !u16 {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    var value = try readKeyValue("[server]", "workers", allocator);
+    defer allocator.free(value);
+    return std.fmt.parseInt(u16, value, 0);
+}
+
 pub fn isDigit(char: u8) bool {
     const digits = "1234567890";
     for (digits) |digit| {
