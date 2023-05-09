@@ -6,7 +6,6 @@ const eql = std.mem.eql;
 const Allocator = std.mem.Allocator;
 pub const Server = struct {
     //create buffer for reading messages
-    message_buf: [1024]u8,
 
     stream_server: std.net.StreamServer,
 
@@ -15,10 +14,9 @@ pub const Server = struct {
 
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
-        var buf: [1024]u8 = undefined;
 
         std.debug.print("Listening at {}.{}.{}.{}:{}\n", .{ host[0], host[1], host[2], host[3], port });
-        return Server{ .stream_server = server, .message_buf = buf };
+        return Server{ .stream_server = server };
     }
 
     pub fn deinit(self: *Server) void {
@@ -45,12 +43,12 @@ pub const Server = struct {
 
     //experimental feature
     pub fn acceptAdv(self: *Server, router: anytype) !void {
-
+        var message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = try self.stream_server.accept();
         defer conn.stream.close();
 
-        var buf = self.message_buf;
+        var buf = message_buf;
         try clean_buffer(&buf, 0);
 
         //create allocator
@@ -70,12 +68,12 @@ pub const Server = struct {
     }
 
     pub fn accept(self: *Server) !void {
-
+        var message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = try self.stream_server.accept();
         defer conn.stream.close();
 
-        var buf = self.message_buf;
+        var buf = message_buf;
         try clean_buffer(&buf, 0);
 
         //create allocator

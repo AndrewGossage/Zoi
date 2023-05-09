@@ -20,12 +20,7 @@ pub const Router = struct {
     }
 };
 
-pub fn server_loop() !void {
-    const port = try toml.getPort();
-    var host: [4]u8 = undefined;
-    _ = try toml.getHost(&host);
-    var server = try Server.init(host, port);
-    defer server.deinit();
+fn worker(server: anytype) !void {
     while (true) {
         // route to files in cwd
         // use server.acceptAdv for manual routing
@@ -35,6 +30,20 @@ pub fn server_loop() !void {
             continue;
         };
     }
+}
+
+pub fn server_loop() !void {
+    const port = try toml.getPort();
+    var host: [4]u8 = undefined;
+    _ = try toml.getHost(&host);
+    var server = try Server.init(host, port);
+    defer server.deinit();
+    const t1 = try std.Thread.spawn(.{}, worker, .{&server});
+    defer t1.join();
+
+    const t2 = try std.Thread.spawn(.{}, worker, .{&server});
+
+    defer t2.join();
 }
 pub fn main() !void {
     try server_loop();
