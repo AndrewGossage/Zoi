@@ -1,7 +1,9 @@
 # Zoi
 Ultra simple zig server for http 1.1 over tcp.
-Zoi delivers static pages over http 1.1 without relying on any external dependencies. All you need is the Zoi source code, and Zig. Zoi is released under the MIT license. If you are wanting to deliver static web pages just put some html/css/js files in the directory where you run Zoi and it will automatically serve any files it finds. It currently runs single threaded although I plan to update that. I make no guarantees that it is stable but I am constantly working to make improvements both to stability and usability. You can feel free to make suggestions on ways it could be improved or even contribute improvements yourself if that is something that would interest you. Zoi runs on 0.11 dev.
+Zoi delivers static pages over http 1.1 without relying on any external dependencies. All you need is the Zoi source code, and Zig. Zoi is released under the MIT license. If you are wanting to deliver static web pages just put some html/css/js files in the directory where you run Zoi and it will automatically serve any files it finds. I make no guarantees that it is stable but I am constantly working to make improvements both to stability and usability. You can feel free to make suggestions on ways it could be improved or even contribute improvements yourself if that is something that would interest you. Zoi runs on 0.11 dev.
 
+### Updates
+Zoi now runs multithreaded! Specify the number of threads in zoi.toml in the server section with the key of "workers".
 
 ### Why Use Zoi?
 That's a good question and Zoi might not be the right choice for you. I built it and continue to build it mostly as a practice exercise for using Zig. That being said, a great benefit of Zoi is that it is incredibly simple. Anyone can learn all its inner workings fairly easily. It would work as a great foundation to hack on and add any features you would like it to have. As a side note although speed is not necessarily a main goal of Zoi it does run lean and tends to have reasonably good response times. 
