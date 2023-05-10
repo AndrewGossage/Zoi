@@ -21,7 +21,11 @@ pub fn getWorkerCount() !u16 {
     const allocator = gpa.allocator();
     var value = try readKeyValue("[server]", "workers", allocator);
     defer allocator.free(value);
-    return std.fmt.parseInt(u16, value, 0);
+
+    return std.fmt.parseInt(u16, value, 0) catch |e| {
+        std.debug.print("val: {any}", .{value});
+        return e;
+    };
 }
 
 pub fn isDigit(char: u8) bool {
@@ -78,7 +82,7 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     }
     if (!found) return "";
     var end: usize = pos;
-    // find the start of the path
+
     for (t[pos..]) |elem| {
         if (elem == '#') {
             end -= 1;
@@ -90,12 +94,12 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
         }
         end += 1;
     }
-    if (end > t.len or end == pos + 1) return "";
+
+    if (end > t.len) return "";
     const out: []u8 = try allocator.alloc(u8, t[pos..end].len);
     var index: usize = 0;
     while (index < t[pos..end].len) : (index += 1) {
         out[index] = t[pos..end][index];
     }
-
     return out;
 }
