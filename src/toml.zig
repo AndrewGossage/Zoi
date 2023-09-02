@@ -44,6 +44,14 @@ pub fn isDigit(char: u8) bool {
     }
     return false;
 }
+pub fn checkFormat(fileName: []u8) !void {
+    _ = fileName;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    var value = try readKeyValue("[server]", "fileTypes", allocator);
+    std.debug.print("{s}\n", .{value});
+}
+
 pub fn getHost(buf: []u8) !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();

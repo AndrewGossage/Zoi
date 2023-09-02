@@ -3,7 +3,7 @@ const s = @import("server.zig");
 const Server = s.Server;
 const toml = @import("toml.zig");
 const eql = std.mem.eql;
-
+const Connection = std.net.Connection;
 // this is for manual routing or creating an api
 pub const Router = struct {
     pub fn testing(message: anytype) !void {
@@ -19,6 +19,8 @@ pub const Router = struct {
         try message.server.sendMessage("<h1>default</h1>", "200 ok", message.conn);
     }
 };
+
+pub const Queue = struct {};
 
 fn worker(server: anytype) !void {
     while (true) {
@@ -40,6 +42,8 @@ pub fn server_loop() !void {
     defer allocator.free(workers);
 
     const port = try toml.getPort();
+    _ = try toml.checkFormat();
+
     var host: [4]u8 = undefined;
     _ = try toml.getHost(&host);
     var server = try Server.init(host, port);
