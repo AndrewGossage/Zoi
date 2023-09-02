@@ -101,9 +101,7 @@ pub const Server = struct {
         var b = try read_file(url.items, allocator);
         defer allocator.free(b);
         _ = b.len;
-        self.lock.lock();
         try self.sendMessage(b, "200 ok", conn);
-        self.lock.unlock();
     }
 
     pub fn acceptManConn(self: *Server, conn: anytype) !void {
