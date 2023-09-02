@@ -4,9 +4,10 @@ const client_msg = "Hello";
 const server_msg = "HTTP/1.1 200 OK\r\n\r\n";
 const eql = std.mem.eql;
 const Allocator = std.mem.Allocator;
+
 pub const Server = struct {
     //create buffer for reading messages
-
+    lock: std.Thread.Mutex,
     stream_server: std.net.StreamServer,
 
     pub fn init(host: [4]u8, port: u16) !Server {
@@ -16,7 +17,7 @@ pub const Server = struct {
         try server.listen(address);
 
         std.debug.print("Listening at {}.{}.{}.{}:{}\n", .{ host[0], host[1], host[2], host[3], port });
-        return Server{ .stream_server = server };
+        return Server{ .stream_server = server, .lock = .{} };
     }
 
     pub fn deinit(self: *Server) void {
@@ -26,6 +27,7 @@ pub const Server = struct {
     pub fn sendMessage(self: *Server, message: anytype, status: anytype, conn: anytype) !void {
         _ = self;
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
         const allocator = gpa.allocator();
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
@@ -38,6 +40,7 @@ pub const Server = struct {
         try response.appendSlice("\r\n\r\n");
         try response.appendSlice(message);
         const resp: []const u8 = response.items;
+
         _ = try conn.stream.write(resp);
     }
 
@@ -55,6 +58,7 @@ pub const Server = struct {
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
         const allocator = gpa.allocator();
 
         //fetch and validate url and status line
@@ -68,9 +72,43 @@ pub const Server = struct {
     }
 
     pub fn accept(self: *Server) !void {
+        self.lock.lock(); // make sure only one thread tries to read from the port at a time
         var message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = try self.stream_server.accept();
+        defer conn.stream.close();
+        self.lock.unlock();
+
+        var buf = message_buf;
+        try clean_buffer(&buf, 0);
+
+        //create allocator
+        _ = try conn.stream.read(buf[0..]);
+        std.debug.print("message: \n{s}\n\n", .{buf});
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
+
+        const allocator = gpa.allocator();
+
+        //fetch and validate url and status line
+        const url = try read_url(&buf, allocator);
+        defer url.deinit();
+        if (!validate_status_line(&buf)) {
+            return;
+        }
+
+        //read file to be returned
+        var b = try read_file(url.items, allocator);
+        defer allocator.free(b);
+        _ = b.len;
+        self.lock.lock();
+        try self.sendMessage(b, "200 ok", conn);
+        self.lock.unlock();
+    }
+
+    pub fn acceptManConn(self: *Server, conn: anytype) !void {
+        var message_buf: [1024]u8 = undefined;
+        //connection over tcp
         defer conn.stream.close();
 
         var buf = message_buf;
@@ -80,6 +118,7 @@ pub const Server = struct {
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
         const allocator = gpa.allocator();
 
         //fetch and validate url and status line
