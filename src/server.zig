@@ -27,6 +27,7 @@ pub const Server = struct {
     pub fn sendMessage(self: *Server, message: anytype, status: anytype, conn: anytype) !void {
         _ = self;
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
         const allocator = gpa.allocator();
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
@@ -57,6 +58,7 @@ pub const Server = struct {
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
         const allocator = gpa.allocator();
 
         //fetch and validate url and status line
@@ -84,6 +86,8 @@ pub const Server = struct {
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
+
         const allocator = gpa.allocator();
 
         //fetch and validate url and status line
@@ -112,6 +116,7 @@ pub const Server = struct {
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
         const allocator = gpa.allocator();
 
         //fetch and validate url and status line

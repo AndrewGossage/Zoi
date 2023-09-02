@@ -15,6 +15,7 @@ pub fn lastDigit(buf: anytype) usize {
 
 pub fn getPort() !u16 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
     var value = try readKeyValue("[server]", "port", allocator);
     defer allocator.free(value);
@@ -27,6 +28,7 @@ pub fn getPort() !u16 {
 
 pub fn getWorkerCount() !u16 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
     var value = try readKeyValue("[server]", "workers", allocator);
     defer allocator.free(value);
@@ -44,16 +46,21 @@ pub fn isDigit(char: u8) bool {
     }
     return false;
 }
-pub fn checkFormat(fileName: []u8) !void {
+pub fn checkFormat(fileName: anytype) !void {
     _ = fileName;
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
     var value = try readKeyValue("[server]", "fileTypes", allocator);
+    defer _ = allocator.free(value);
     std.debug.print("{s}\n", .{value});
 }
 
 pub fn getHost(buf: []u8) !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
     const allocator = gpa.allocator();
     var value = try readKeyValue("[server]", "host", allocator);
     defer allocator.free(value);
