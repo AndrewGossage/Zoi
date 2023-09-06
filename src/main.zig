@@ -42,7 +42,6 @@ pub fn server_loop() !void {
     defer allocator.free(workers);
 
     const port = try toml.getPort();
-    _ = try toml.checkFormat("css");
 
     var host: [4]u8 = undefined;
     _ = try toml.getHost(&host);

@@ -178,7 +178,7 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     }
 
     //default to index.html for the home page
-    if (eql(u8, list.items, "") or eql(u8, list.items, "Zoi")) {
+    if (eql(u8, list.items, "")) {
         try list.appendSlice("index.html");
     }
 
