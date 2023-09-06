@@ -4,6 +4,7 @@ const client_msg = "Hello";
 const server_msg = "HTTP/1.1 200 OK\r\n\r\n";
 const eql = std.mem.eql;
 const Allocator = std.mem.Allocator;
+const toml = @import("toml.zig");
 
 pub const Server = struct {
     //create buffer for reading messages
@@ -93,14 +94,17 @@ pub const Server = struct {
         //fetch and validate url and status line
         const url = try read_url(&buf, allocator);
         defer url.deinit();
-        if (!validate_status_line(&buf)) {
-            return;
-        }
 
         //read file to be returned
         var b = try read_file(url.items, allocator);
         defer allocator.free(b);
         _ = b.len;
+
+        // send response with correct status code
+        if (eql(u8, url.items, "404.html")) {
+            try self.sendMessage(b, "404 not found", conn);
+            return;
+        }
         try self.sendMessage(b, "200 ok", conn);
     }
 
@@ -145,9 +149,10 @@ pub fn clean_buffer(buf: anytype, start: usize) !void {
 }
 
 // parse the url from a tcp message
-pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
+pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     var list = std.ArrayList(u8).init(allocator);
     var pos: usize = 1;
+
     // find the start of the path
     for (buf) |elem| {
         if (elem == '/') {
@@ -155,6 +160,7 @@ pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
         }
         pos += 1;
     }
+
     //find the end of the path and add appropriate characters
     var end: usize = 0;
     if (pos > buf.len) {
@@ -175,6 +181,52 @@ pub fn read_url(buf: []u8, allocator: Allocator) !std.ArrayList(u8) {
     if (eql(u8, list.items, "") or eql(u8, list.items, "Zoi")) {
         try list.appendSlice("index.html");
     }
+
+    // for now urls must be at least 3 characters long
+    if (list.items.len < 3) {
+        list.deinit();
+        list = std.ArrayList(u8).init(allocator);
+
+        std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
+        try list.appendSlice("404.html");
+    }
+
+    //filter hidden files and directories
+    var last: u8 = '/';
+    for (list.items) |elem| {
+        if (elem == '.' and last == '/') {
+            list.deinit();
+            list = std.ArrayList(u8).init(allocator);
+
+            std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
+            try list.appendSlice("404.html");
+
+            std.debug.print("!! attempted to access hidden file or folder\n", .{});
+            return list;
+        }
+        last = elem;
+    }
+
+    //make sure filetype is supported
+    std.debug.print("file: {s}\n", .{list.items});
+    var dotSpot: usize = list.items.len - 2;
+
+    std.debug.print("\n", .{});
+    var validFormat: bool = false;
+    while (list.items[dotSpot + 1] != '.' and dotSpot > 0) {
+        if (list.items[dotSpot] == '.') {
+            validFormat = try toml.checkFormat(list.items[dotSpot + 1 .. list.items.len]);
+        }
+        dotSpot -= 1;
+    }
+    if (validFormat == false) {
+        list.deinit();
+        list = std.ArrayList(u8).init(allocator);
+
+        std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
+        try list.appendSlice("404.html");
+    }
+
     return list;
 }
 // make sure we are getting a valid status line

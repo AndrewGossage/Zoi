@@ -46,15 +46,31 @@ pub fn isDigit(char: u8) bool {
     }
     return false;
 }
-pub fn checkFormat(fileName: anytype) !void {
-    _ = fileName;
+pub fn checkFormat(fileName: anytype) !bool {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
     var value = try readKeyValue("[server]", "fileTypes", allocator);
     defer _ = allocator.free(value);
-    std.debug.print("{s}\n", .{value});
+    var pos: usize = 0;
+    while (pos < value.len) {
+        if (value[pos] == '"') {
+            var end = pos + 1;
+            while (value[end] != '"' and value[end] != '}') {
+                end += 1;
+            }
+            if (value[end] == '}' or end > value.len) {
+                return false;
+            }
+            if (eql(u8, fileName, value[pos + 1 .. end])) {
+                return true;
+            }
+            pos = end;
+        }
+        pos += 1;
+    }
+    return false;
 }
 
 pub fn getHost(buf: []u8) !void {
