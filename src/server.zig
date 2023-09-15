@@ -76,7 +76,10 @@ pub const Server = struct {
         self.lock.lock(); // make sure only one thread tries to read from the port at a time
         var message_buf: [1024]u8 = undefined;
         //connection over tcp
-        const conn = try self.stream_server.accept();
+        const conn = self.stream_server.accept() catch |err| {
+            self.lock.unlock();
+            return err;
+        };
         defer conn.stream.close();
         self.lock.unlock();
 
