@@ -10,25 +10,30 @@ pub const Server = struct {
     //create buffer for reading messages
     lock: std.Thread.Mutex,
     stream_server: std.net.StreamServer,
+    gpa: @TypeOf(std.heap.GeneralPurposeAllocator(.{}){}),
 
     pub fn init(host: [4]u8, port: u16) !Server {
         const address = std.net.Address.initIp4(host, port);
 
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
 
         std.debug.print("Listening at {}.{}.{}.{}:{}\n", .{ host[0], host[1], host[2], host[3], port });
-        return Server{ .stream_server = server, .lock = .{} };
+        return Server{
+            .stream_server = server,
+            .lock = .{},
+            .gpa = gpa,
+        };
     }
 
     pub fn deinit(self: *Server) void {
         self.stream_server.deinit();
+        _ = self.gpa.deinit();
     }
 
     pub fn sendMessage(self: *Server, message: anytype, status: anytype, conn: anytype) !void {
-        _ = self;
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        defer _ = gpa.deinit();
+        var gpa = self.gpa;
         const allocator = gpa.allocator();
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
@@ -58,8 +63,7 @@ pub const Server = struct {
         //create allocator
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        defer _ = gpa.deinit();
+        var gpa = self.gpa;
         const allocator = gpa.allocator();
 
         //fetch and validate url and status line
@@ -89,8 +93,7 @@ pub const Server = struct {
         //create allocator
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        defer _ = gpa.deinit();
+        var gpa = self.gpa;
 
         const allocator = gpa.allocator();
 
@@ -122,8 +125,7 @@ pub const Server = struct {
         //create allocator
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        defer _ = gpa.deinit();
+        var gpa = self.gpa;
         const allocator = gpa.allocator();
 
         //fetch and validate url and status line
@@ -167,7 +169,10 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     //find the end of the path and add appropriate characters
     var end: usize = 0;
     if (pos > buf.len) {
-        try list.appendSlice("404.html");
+        list.appendSlice("404.html") catch |err| {
+            list.deinit();
+            return err;
+        };
         return list;
     }
 
@@ -175,14 +180,20 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
         if (elem == ' ') {
             break;
         } else {
-            try list.append(elem);
+            list.append(elem) catch |err| {
+                list.deinit();
+                return err;
+            };
         }
         end += 1;
     }
 
     //default to index.html for the home page
     if (eql(u8, list.items, "")) {
-        try list.appendSlice("index.html");
+        list.appendSlice("index.html") catch |err| {
+            list.deinit();
+            return err;
+        };
     }
 
     // for now urls must be at least 3 characters long
@@ -191,7 +202,10 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
         list = std.ArrayList(u8).init(allocator);
 
         std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
-        try list.appendSlice("404.html");
+        list.appendSlice("404.html") catch |err| {
+            list.deinit();
+            return err;
+        };
     }
 
     //filter hidden files and directories
@@ -202,7 +216,10 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
             list = std.ArrayList(u8).init(allocator);
 
             std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
-            try list.appendSlice("404.html");
+            list.appendSlice("404.html") catch |err| {
+                list.deinit();
+                return err;
+            };
 
             std.debug.print("!! attempted to access hidden file or folder\n", .{});
             return list;
@@ -227,7 +244,10 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
         list = std.ArrayList(u8).init(allocator);
 
         std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
-        try list.appendSlice("404.html");
+        list.appendSlice("404.html") catch |err| {
+            list.deinit();
+            return err;
+        };
     }
 
     return list;
