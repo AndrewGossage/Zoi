@@ -8,7 +8,7 @@ That's a good question and Zoi might not be the right choice for you. I built it
 
 ### Instructions
 #### Static Content
-Just put the files you want to be able to deliver as static web pages in the same directory where you run the command to start the server. This can be done by running "zig build run" in the top level directory of the project. Zoi expects an index.html file and a 404.html file to be present at minimum.
+Just put the files you want to be able to deliver as static web pages in the same directory where you run the command to start the server. This can be done by running "zig build run" in the top level directory of the project. Zoi expects an index.html file and a 404.html file to be present at minimum. On the official site I have noticed that it can hang up when not periodically restarted. I am currently using automation for that to hopefully keep it running smoothly. 
 
 #### Dynamic Content
 Zoi can handle dynamic content by replacing 'server.accept' with 'server.acceptAdv' in the server loop function in main.zig. You then pass in a struct that has an 'accept' function. This function needs to take in a struct as its only argument. There is a simple example of how to do this in main.zig. 
