@@ -17,6 +17,9 @@ Zoi can handle dynamic content by replacing 'server.accept' with 'server.acceptA
 The port and host are chosen based on zoi.toml. Currently this is all the zoi.toml file does and toml parsing is not complete. However, as new features are added I will improve toml reading. In its default configuration Zoi runs on localhost:8080. If you want to run this in production change the host to {0,0,0,0} and port to 80 in zoi.toml. You will need to allow access to port 80 through your firewall.  If you want added security or load balancing you could instead run another server between Zoi and the outside internet by using port forwarding. 
 
 ### Latest Updates
+#### Nov 13 2023
+Partially fixed an issue with toml reading where toml would only parse if only one section was present. Currently the \[server\] section still needs to be listed first but that will be fixed soon.
+
 #### Oct 3 2023
 The general purpose allocator used for server.accept is now shared across calls. Potential leaks for append calls to arrayLists in multiple functions have been fixed.
 
