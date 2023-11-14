@@ -21,7 +21,6 @@ pub fn getPort() !u16 {
     defer allocator.free(value);
     var end = lastDigit(value);
     return std.fmt.parseInt(u16, value[0 .. end + 1], 0) catch |e| {
-        std.debug.print("failed to read value: '{s}' for port\n", .{value[0..end]});
         return e;
     };
 }
@@ -34,7 +33,6 @@ pub fn getWorkerCount() !u16 {
     defer allocator.free(value);
     var end = lastDigit(value);
     return std.fmt.parseInt(u16, value[0 .. end + 1], 0) catch |e| {
-        std.debug.print("failed to read value: '{s}' for worker count\n", .{value[0..end]});
         return e;
     };
 }
@@ -103,7 +101,6 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     var pos: usize = 0;
     while (it.next()) |slice| {
         if (eql(u8, slice, section)) {
-            std.debug.print("&&&&&&&&&7\nsection: {s}--\n", .{slice});
             pos = it.index.? + section.len;
             break;
         }
@@ -115,7 +112,6 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
         // check if we found the key + the proper spaceing and
         // equal sign
         
-        std.debug.print("&&&&&&&&&7\n{s}:--{s}--\n", .{key, slice});
 
         if (eql(u8, slice, key)) {
             pos = it2.index.? + key.len;
@@ -147,6 +143,5 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
         out[index] = t[pos..end][index];
     }
 
-    std.debug.print("*********\nreturn {s}:--{s}--\n", .{key, out});
     return out;
 }
