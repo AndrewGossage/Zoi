@@ -103,24 +103,30 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     var pos: usize = 0;
     while (it.next()) |slice| {
         if (eql(u8, slice, section)) {
-            pos = it.index.?;
+            std.debug.print("&&&&&&&&&7\nsection: {s}--\n", .{slice});
+            pos = it.index.? + section.len;
             break;
         }
         pos += 1;
     }
-    it = std.mem.window(u8, t[pos..], key.len, 1);
+    var it2 = std.mem.window(u8, t[pos..], key.len, 1);
     var found: bool = false;
-    while (it.next()) |slice| {
+    while (it2.next()) |slice| {
         // check if we found the key + the proper spaceing and
         // equal sign
-        if (eql(u8, slice, key) and eql(u8, " =", t[(it.index.? + key.len) .. it.index.? + 2 + key.len]) and t[it.index.? - 1] == '\n') {
-            pos = it.index.? + 2 + key.len;
+        
+        std.debug.print("&&&&&&&&&7\n{s}:--{s}--\n", .{key, slice});
+
+        if (eql(u8, slice, key)) {
+            pos = it2.index.? + key.len;
             found = true;
-        } else if (slice[0] == '[') {
+            break;
+        } else if (slice[1] == '[' and slice[0] == '\n') {
             return "";
         }
     }
-    while (t[pos] == ' ') pos += 1;
+    while (t[pos] != '=') pos += 1;
+    while (t[pos] == ' ' or t[pos] == '=') pos += 1;
     if (!found) return "";
     var end: usize = pos;
 
@@ -130,17 +136,17 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
             break;
         } else if (elem == '\n') {
             break;
-        } else if (elem == '[') {
-            return "";
-        }
+        } 
         end += 1;
     }
 
     if (end > t.len) return "";
-    const out: []u8 = try allocator.alloc(u8, t[pos..end].len);
+    const out: []u8 = try allocator.alloc(u8, t[pos..end].len + 1);
     var index: usize = 0;
     while (index < t[pos..end].len) : (index += 1) {
         out[index] = t[pos..end][index];
     }
+
+    std.debug.print("*********\nreturn {s}:--{s}--\n", .{key, out});
     return out;
 }

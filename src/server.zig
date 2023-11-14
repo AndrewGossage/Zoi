@@ -19,7 +19,7 @@ pub const Server = struct {
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
 
-        std.debug.print("Listening at {}.{}.{}.{}:{}\n", .{ host[0], host[1], host[2], host[3], port });
+        //std.debug.print("Listening at {}.{}.{}.{}:{}\n", .{ host[0], host[1], host[2], host[3], port });
         return Server{
             .stream_server = server,
             .lock = .{},
@@ -62,7 +62,7 @@ pub const Server = struct {
 
         //create allocator
         _ = try conn.stream.read(buf[0..]);
-        std.debug.print("message: \n{s}\n\n", .{buf});
+        //std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = self.gpa;
         const allocator = gpa.allocator();
 

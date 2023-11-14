@@ -2,4 +2,9 @@
 port = 8080 
 host = {127, 0, 0, 1}
 workers = 3
-fileTypes = {"css", "html", "jpg", "jpeg", "png", "js"}
+fileTypes = ["css", "html", "jpg", "jpeg", "png", "js"]
+[test]
+one = 23
+two = 34
+[world]
+foo = "bar"
