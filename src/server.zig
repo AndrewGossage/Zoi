@@ -51,7 +51,7 @@ pub const Server = struct {
     }
 
     //experimental feature
-    pub fn acceptAdv(self: *Server, router: anytype) !void {
+    pub fn acceptAdvOld(self: *Server, router: anytype) !void {
         var message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = try self.stream_server.accept();
@@ -74,6 +74,44 @@ pub const Server = struct {
         }
 
         try router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn });
+    }
+    pub fn acceptAdv(self: *Server, router: anytype) !void {
+        self.lock.lock(); // make sure only one thread tries to read from the port at a time
+        var message_buf: [1024]u8 = undefined;
+        //connection over tcp
+        const conn = self.stream_server.accept() catch |err| {
+            self.lock.unlock();
+            return err;
+        };
+        defer conn.stream.close();
+        self.lock.unlock();
+
+        var buf = message_buf;
+        try clean_buffer(&buf, 0);
+
+        //create allocator
+        _ = try conn.stream.read(buf[0..]);
+        std.debug.print("message: \n{s}\n\n", .{buf});
+        var gpa = self.gpa;
+
+        const allocator = gpa.allocator();
+
+        //fetch and validate url and status line
+        const url = try read_url(&buf, allocator);
+        defer url.deinit();
+        router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn, .allocator = allocator }) catch {
+            //read file to be returned
+            var b = try read_file(url.items, allocator);
+            defer allocator.free(b);
+            _ = b.len;
+
+            // send response with correct status code
+            if (eql(u8, url.items, "404.html")) {
+                try self.sendMessage(b, "404 not found", conn);
+                return;
+            }
+            try self.sendMessage(b, "200 ok", conn);
+        };
     }
 
     pub fn accept(self: *Server) !void {

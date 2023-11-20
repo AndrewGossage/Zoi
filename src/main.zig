@@ -6,13 +6,14 @@ const eql = std.mem.eql;
 const Connection = std.net.Connection;
 // this is for manual routing or creating an api
 pub const Router = struct {
-    pub fn testing(message: anytype) !void {
+    pub fn testing(self: anytype, message: anytype) !void {
+        _ = self;
         try message.server.sendMessage("<h1>testing</h1>", "200 ok", message.conn);
         return;
     }
-    pub fn accept(message: anytype) !void {
+    pub fn accept(self: anytype, message: anytype) !void {
         if (eql(u8, message.url, "testing")) {
-            try Router.testing(message);
+            try self.testing(message);
             return;
         }
 
@@ -23,10 +24,11 @@ pub const Router = struct {
 pub const Queue = struct {};
 
 fn worker(server: anytype) !void {
+    var router = Router{};
     while (true) {
         // route to files in cwd
         // use server.acceptAdv for manual routing
-        server.accept() catch |e| {
+        server.acceptAdv(router) catch |e| {
             std.debug.print("error found: {}\n", .{e});
 
             continue;
