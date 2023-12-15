@@ -24,11 +24,10 @@ pub const Router = struct {
 pub const Queue = struct {};
 
 fn worker(server: anytype) !void {
-    var router = Router{};
     while (true) {
         // route to files in cwd
         // use server.acceptAdv for manual routing
-        server.acceptAdv(router) catch |e| {
+        server.accept() catch |e| {
             std.debug.print("error found: {}\n", .{e});
 
             continue;

@@ -15,7 +15,7 @@ pub const Server = struct {
     pub fn init(host: [4]u8, port: u16) !Server {
         const address = std.net.Address.initIp4(host, port);
 
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        const gpa = std.heap.GeneralPurposeAllocator(.{}){};
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
 
@@ -40,7 +40,7 @@ pub const Server = struct {
         defer response.deinit();
 
         //add status line
-        var m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\nContent-Length: {d}", .{ status, message.len });
+        const m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\nContent-Length: {d}", .{ status, message.len });
         defer allocator.free(m);
         try response.appendSlice(m);
         try response.appendSlice("\r\n\r\n");
@@ -52,7 +52,7 @@ pub const Server = struct {
 
     //experimental feature
     pub fn acceptAdvOld(self: *Server, router: anytype) !void {
-        var message_buf: [1024]u8 = undefined;
+        const message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = try self.stream_server.accept();
         defer conn.stream.close();
@@ -77,7 +77,7 @@ pub const Server = struct {
     }
     pub fn acceptAdv(self: *Server, router: anytype) !void {
         self.lock.lock(); // make sure only one thread tries to read from the port at a time
-        var message_buf: [1024]u8 = undefined;
+        const message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = self.stream_server.accept() catch |err| {
             self.lock.unlock();
@@ -101,7 +101,7 @@ pub const Server = struct {
         defer url.deinit();
         router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn, .allocator = allocator }) catch {
             //read file to be returned
-            var b = try read_file(url.items, allocator);
+            const b = try read_file(url.items, allocator);
             defer allocator.free(b);
             _ = b.len;
 
@@ -116,7 +116,7 @@ pub const Server = struct {
 
     pub fn accept(self: *Server) !void {
         self.lock.lock(); // make sure only one thread tries to read from the port at a time
-        var message_buf: [1024]u8 = undefined;
+        const message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = self.stream_server.accept() catch |err| {
             self.lock.unlock();
@@ -140,7 +140,7 @@ pub const Server = struct {
         defer url.deinit();
 
         //read file to be returned
-        var b = try read_file(url.items, allocator);
+        const b = try read_file(url.items, allocator);
         defer allocator.free(b);
         _ = b.len;
 
@@ -153,7 +153,7 @@ pub const Server = struct {
     }
 
     pub fn acceptManConn(self: *Server, conn: anytype) !void {
-        var message_buf: [1024]u8 = undefined;
+        const message_buf: [1024]u8 = undefined;
         //connection over tcp
         defer conn.stream.close();
 
@@ -174,7 +174,7 @@ pub const Server = struct {
         }
 
         //read file to be returned
-        var b = try read_file(url.items, allocator);
+        const b = try read_file(url.items, allocator);
         defer allocator.free(b);
         _ = b.len;
         try self.sendMessage(b, "200 ok", conn);

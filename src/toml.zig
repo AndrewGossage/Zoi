@@ -17,9 +17,9 @@ pub fn getPort() !u16 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-    var value = try readKeyValue("[server]", "port", allocator);
+    const value = try readKeyValue("[server]", "port", allocator);
     defer allocator.free(value);
-    var end = lastDigit(value);
+    const end = lastDigit(value);
     return std.fmt.parseInt(u16, value[0 .. end + 1], 0) catch |e| {
         return e;
     };
@@ -28,10 +28,10 @@ pub fn getPort() !u16 {
 pub fn getWorkerCount() !u16 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    var allocator = gpa.allocator();
     var value = try readKeyValue("[server]", "workers", allocator);
     defer allocator.free(value);
-    var end = lastDigit(value);
+    const end = lastDigit(value);
     return std.fmt.parseInt(u16, value[0 .. end + 1], 0) catch |e| {
         return e;
     };
@@ -111,7 +111,6 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     while (it2.next()) |slice| {
         // check if we found the key + the proper spaceing and
         // equal sign
-        
 
         if (eql(u8, slice, key)) {
             pos = it2.index.? + key.len;
@@ -132,7 +131,7 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
             break;
         } else if (elem == '\n') {
             break;
-        } 
+        }
         end += 1;
     }
 
