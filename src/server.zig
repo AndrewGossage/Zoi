@@ -99,19 +99,7 @@ pub const Server = struct {
         //fetch and validate url and status line
         const url = try read_url(&buf, allocator);
         defer url.deinit();
-        router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn, .allocator = allocator }) catch {
-            //read file to be returned
-            const b = try read_file(url.items, allocator);
-            defer allocator.free(b);
-            _ = b.len;
-
-            // send response with correct status code
-            if (eql(u8, url.items, "404.html")) {
-                try self.sendMessage(b, "404 not found", conn);
-                return;
-            }
-            try self.sendMessage(b, "200 ok", conn);
-        };
+        try router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn, .allocator = allocator });
     }
 
     pub fn accept(self: *Server) !void {
