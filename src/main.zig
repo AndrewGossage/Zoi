@@ -36,16 +36,17 @@ fn worker(server: anytype) !void {
 }
 
 pub fn server_loop() !void {
-    const worker_count = try toml.getWorkerCount();
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+
+    const worker_count = try toml.getWorkerCount(allocator);
     const workers: []std.Thread = try allocator.alloc(std.Thread, worker_count);
     defer allocator.free(workers);
 
-    const port = try toml.getPort();
+    const port = try toml.getPort(allocator);
 
     var host: [4]u8 = undefined;
-    _ = try toml.getHost(&host);
+    _ = try toml.getHost(&host, allocator);
     var server = try Server.init(host, port);
     defer server.deinit();
 
