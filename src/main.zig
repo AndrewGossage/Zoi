@@ -8,16 +8,27 @@ const Connection = std.net.Connection;
 pub const Router = struct {
     pub fn testing(self: anytype, message: anytype) !void {
         _ = self;
-        try message.server.sendMessage("<h1>testing</h1>", "200 ok", message.conn);
+        try message.server.sendMessage("<h1>testing</h1> This is a message from Zoi", "200 ok", message.conn);
         return;
     }
+
+    pub fn echo(self: anytype, message: anytype) !void {
+        _ = self;
+        try message.server.sendMessage(&message.buf, "200 ok", message.conn);
+    }
+
     pub fn accept(self: anytype, message: anytype) !void {
-        if (eql(u8, message.url, "testing")) {
+        if (eql(u8, message.url, "testing.html")) {
             try self.testing(message);
             return;
         }
 
-        try message.server.sendMessage("<h1>default</h1>", "200 ok", message.conn);
+        if (eql(u8, message.url, "echo.html")) {
+            try self.echo(message);
+            return;
+        }
+
+        try message.server.acceptFallback(message.conn, message.url);
     }
 };
 
@@ -25,9 +36,13 @@ pub const Queue = struct {};
 
 fn worker(server: anytype) !void {
     while (true) {
-        // route to files in cwd
-        // use server.acceptAdv for manual routing
-        server.accept() catch |e| {
+
+        //by default this will only handle '/testing.html' and anything else will be
+        // treated as a request for a static webpage
+        const router = Router{};
+
+        // use server.accept for only static content
+        server.acceptAdv(router) catch |e| {
             std.debug.print("error found: {}\n", .{e});
 
             continue;

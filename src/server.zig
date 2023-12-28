@@ -140,6 +140,23 @@ pub const Server = struct {
         try self.sendMessage(b, "200 ok", conn);
     }
 
+    pub fn acceptFallback(self: *Server, conn: anytype, url: anytype) !void {
+        var gpa = self.gpa;
+
+        const allocator = gpa.allocator();
+
+        const b = try read_file(url, allocator);
+        defer allocator.free(b);
+        _ = b.len;
+
+        // send response with correct status code
+        if (eql(u8, url, "404.html")) {
+            try self.sendMessage(b, "404 not found", conn);
+            return;
+        }
+        try self.sendMessage(b, "200 ok", conn);
+    }
+
     pub fn acceptManConn(self: *Server, conn: anytype) !void {
         const message_buf: [1024]u8 = undefined;
         //connection over tcp
