@@ -8,7 +8,7 @@ const Connection = std.net.Connection;
 pub const Router = struct {
     pub fn testing(self: anytype, message: anytype) !void {
         _ = self;
-        try message.server.sendMessage("<h1>testing</h1> This is a message from Zoi", "200 ok", message.conn);
+        try message.server.sendMessage("<h1>Hello from Zoi!</h1>", "200 ok", message.conn);
         return;
     }
 
