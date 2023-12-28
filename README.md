@@ -17,10 +17,15 @@ Zoi can handle dynamic content, there is an example struct in main.zig that can 
 The port and host are chosen based on zoi.toml. Currently this is all the zoi.toml file does and toml parsing is not complete. However, as new features are added I will improve toml reading. In its default configuration Zoi runs on localhost:8080. If you want to run this in production change the host to {0,0,0,0} and port to 80 in zoi.toml. You will need to allow access to port 80 through your firewall.  If you want added security or load balancing you could instead run another server between Zoi and the outside internet by using port forwarding. 
 
 ### Latest Updates
-#### Nov 19 2023
-Accept adv has been updated with improvements to regular accept function.
+
+#### Dec 28 2023
+Significatly improved parsing of zoi.toml server section no longer has to be first section in document. I now use standard substring finding functions instead of manually checking for each substring. 
+
 #### Dec 27 2023
 Added header parsing and support for dynamic content, Manual router in main.zig is now active by default but is only coded to handle requests to "test.html" and "echo.html", anything else will go to a new fallback method that will handle any un processed request as a request for a static page. 
+
+#### Nov 19 2023
+Accept adv has been updated with improvements to regular accept function.
 
 #### Nov 13 2023
 Partially fixed an issue with toml reading where toml would only parse if only one section was present. Currently the \[server\] section still needs to be listed first but that will be fixed soon.
@@ -30,8 +35,6 @@ The general purpose allocator used for server.accept is now shared across calls.
 
 #### Sep 6 2023
 In the zoi.toml you now specify which filetypes you will allow to go out, this is for security. Hidden files and folders are excluded from going out altogether for security purpose20s.
-
-
 
 
 ### Needed Work
