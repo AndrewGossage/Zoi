@@ -19,6 +19,8 @@ The port and host are chosen based on zoi.toml. Currently this is all the zoi.to
 ### Latest Updates
 #### Nov 19 2023
 Accept adv has been updated with improvements to regular accept function.
+#### Dec 27 2023
+Added header parsing and support for dynamic content, Manual router in main.zig is now active by default but is only coded to handle requests to "test.html" and "echo.html", anything else will go to a new fallback method that will handle any un processed request as a request for a static page. 
 
 #### Nov 13 2023
 Partially fixed an issue with toml reading where toml would only parse if only one section was present. Currently the \[server\] section still needs to be listed first but that will be fixed soon.
