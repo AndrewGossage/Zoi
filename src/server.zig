@@ -56,7 +56,6 @@ pub const Server = struct {
         //connection over tcp
         const conn = try self.stream_server.accept();
         defer conn.stream.close();
-
         var buf = message_buf;
         try clean_buffer(&buf, 0);
 
@@ -199,6 +198,7 @@ pub fn clean_buffer(buf: anytype, start: usize) !void {
 // parse the url from a tcp message
 pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
     var pos: usize = 1;
 
     // find the start of the path
@@ -213,7 +213,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     var end: usize = 0;
     if (pos > buf.len) {
         list.appendSlice("404.html") catch |err| {
-            list.deinit();
             return err;
         };
         return list;
@@ -224,7 +223,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
             break;
         } else {
             list.append(elem) catch |err| {
-                list.deinit();
                 return err;
             };
         }
@@ -234,7 +232,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     //default to index.html for the home page
     if (eql(u8, list.items, "")) {
         list.appendSlice("index.html") catch |err| {
-            list.deinit();
             return err;
         };
     }
@@ -246,7 +243,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
 
         std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
         list.appendSlice("404.html") catch |err| {
-            list.deinit();
             return err;
         };
     }
@@ -260,7 +256,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
 
             std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
             list.appendSlice("404.html") catch |err| {
-                list.deinit();
                 return err;
             };
 
@@ -288,7 +283,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
 
         std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
         list.appendSlice("404.html") catch |err| {
-            list.deinit();
             return err;
         };
     }

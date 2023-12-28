@@ -21,14 +21,12 @@ pub const Router = struct {
         if (eql(u8, message.url, "testing.html")) {
             try self.testing(message);
             return;
-        }
-
-        if (eql(u8, message.url, "echo.html")) {
+        } else if (eql(u8, message.url, "echo.html")) {
             try self.echo(message);
             return;
+        } else {
+            try message.server.acceptFallback(message.conn, message.url);
         }
-
-        try message.server.acceptFallback(message.conn, message.url);
     }
 };
 
@@ -37,8 +35,8 @@ pub const Queue = struct {};
 fn worker(server: anytype) !void {
     while (true) {
 
-        //by default this will only handle '/testing.html' and anything else will be
-        // treated as a request for a static webpage
+        //by default this will handle '/testing.html' and '/echo.html' and anything
+        //else will be treated as a request for a static webpage
         const router = Router{};
 
         // use server.accept for only static content
