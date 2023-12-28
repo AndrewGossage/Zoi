@@ -64,7 +64,6 @@ pub fn checkFormat(fileName: anytype, allocator: Allocator) !bool {
 pub fn getHost(buf: []u8, allocator: Allocator) !void {
     var value = try readKeyValue("[server]", "host", allocator);
     defer allocator.free(value);
-
     var pos: usize = 0;
     for (0..4) |i| {
         while (!isDigit(value[pos])) {
@@ -83,35 +82,26 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     const t = try readToml(allocator);
     defer allocator.free(t);
 
-    var it = std.mem.window(u8, t, section.len, 1);
-    var pos: usize = 0;
-    while (it.next()) |slice| {
-        if (eql(u8, slice, section)) {
-            pos = it.index.? + section.len;
-            break;
-        }
-        pos += 1;
+    const section_start = std.mem.indexOf(u8, t, section);
+    if (section_start == null) {
+        return "";
     }
-    var it2 = std.mem.window(u8, t[pos..], key.len, 1);
-    var found: bool = false;
-    while (it2.next()) |slice| {
-        // check if we found the key + the proper spaceing and
-        // equal sign
 
-        if (eql(u8, slice, key)) {
-            pos = it2.index.? + key.len;
-            found = true;
-            break;
-        } else if (slice[1] == '[' and slice[0] == '\n') {
-            return "";
-        }
+    var pos: usize = section_start.? + section.len;
+
+    const slice = t[pos..];
+    const key_start = std.mem.indexOf(u8, slice, key);
+    if (key_start == null) {
+        return "";
     }
-    while (t[pos] != '=') pos += 1;
-    while (t[pos] == ' ' or t[pos] == '=') pos += 1;
-    if (!found) return "";
+
+    pos = key_start.?;
+
+    while (slice[pos] != '=') pos += 1;
+    while (slice[pos] == ' ' or slice[pos] == '=') pos += 1;
     var end: usize = pos;
 
-    for (t[pos..]) |elem| {
+    for (slice[pos..]) |elem| {
         if (elem == '#') {
             end -= 1;
             break;
@@ -121,12 +111,10 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
         end += 1;
     }
 
-    if (end > t.len) return "";
     const out: []u8 = try allocator.alloc(u8, t[pos..end].len + 1);
     var index: usize = 0;
     while (index < t[pos..end].len) : (index += 1) {
-        out[index] = t[pos..end][index];
+        out[index] = slice[pos..end][index];
     }
-
     return out;
 }
