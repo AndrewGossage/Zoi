@@ -5,6 +5,7 @@ const server_msg = "HTTP/1.1 200 OK\r\n\r\n";
 const eql = std.mem.eql;
 const Allocator = std.mem.Allocator;
 const toml = @import("toml.zig");
+const dict = std.StringHashMap([]const u8);
 
 pub const Server = struct {
     //create buffer for reading messages
@@ -49,31 +50,25 @@ pub const Server = struct {
 
         _ = try conn.stream.write(resp);
     }
+    pub fn parseHeaders(self: *Server, buffer: anytype, allocator: Allocator) !dict {
+        _ = self;
+        var hash = dict.init(allocator);
+        errdefer hash.deinit();
+        try hash.put("foo", "bar");
 
-    //experimental feature
-    pub fn acceptAdvOld(self: *Server, router: anytype) !void {
-        const message_buf: [1024]u8 = undefined;
-        //connection over tcp
-        const conn = try self.stream_server.accept();
-        defer conn.stream.close();
-        var buf = message_buf;
-        try clean_buffer(&buf, 0);
-
-        //create allocator
-        _ = try conn.stream.read(buf[0..]);
-        //std.debug.print("message: \n{s}\n\n", .{buf});
-        var gpa = self.gpa;
-        const allocator = gpa.allocator();
-
-        //fetch and validate url and status line
-        const url = try read_url(&buf, allocator);
-        defer url.deinit();
-        if (!validate_status_line(&buf)) {
-            return;
+        var it = std.mem.tokenize(u8, buffer, "\n");
+        _ = it.next();
+        while (it.next()) |slice| {
+            const divider = std.mem.indexOf(u8, slice, ":");
+            if (divider == null) {
+                break;
+            }
+            const i = divider.? + 2;
+            try hash.put(slice[0 .. i - 2], slice[i..slice.len]);
         }
-
-        try router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn });
+        return hash;
     }
+
     pub fn acceptAdv(self: *Server, router: anytype) !void {
         self.lock.lock(); // make sure only one thread tries to read from the port at a time
         const message_buf: [1024]u8 = undefined;
@@ -87,18 +82,27 @@ pub const Server = struct {
 
         var buf = message_buf;
         try clean_buffer(&buf, 0);
-
         //create allocator
         _ = try conn.stream.read(buf[0..]);
         std.debug.print("message: \n{s}\n\n", .{buf});
         var gpa = self.gpa;
 
         const allocator = gpa.allocator();
+        var method = std.ArrayList(u8).init(allocator);
+        defer method.deinit();
+        if (eql(u8, buf[0..5], "POST /")) {
+            try method.appendSlice("POST");
+        } else {
+            try method.appendSlice("GET");
+        }
 
         //fetch and validate url and status line
         const url = try read_url(&buf, allocator);
         defer url.deinit();
-        try router.accept(.{ .server = self, .url = url.items, .buf = buf, .conn = conn, .allocator = allocator });
+        var headers = try self.parseHeaders(&buf, allocator);
+        defer headers.deinit();
+
+        try router.accept(.{ .method = method, .headers = headers, .server = self, .url = url.items, .buf = buf, .conn = conn, .allocator = allocator });
     }
 
     pub fn accept(self: *Server) !void {
