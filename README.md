@@ -11,7 +11,7 @@ That's a good question and Zoi might not be the right choice for you. I built it
 Just put the files you want to be able to deliver as static web pages in the same directory where you run the command to start the server. This can be done by running "zig build run" in the top level directory of the project. Zoi expects an index.html file and a 404.html file to be present at minimum. On the official site I have noticed that it can hang up when not periodically restarted. I am currently using automation for that to hopefully keep it running smoothly. 
 
 #### Dynamic Content
-Zoi can handle dynamic content, there is an example struct in main.zig that can be used or replaced. By defail this struct will handle requests to "echo.html" and "testing.html" anything else will be handled as a request for static content. Also, because of how easy it is to hack on top of Zoi you can  fairly easily embed a scripting language if that is your cup of tea. 
+Zoi can handle dynamic content, there is an example struct in main.zig that can be used or replaced. By defail this struct will handle requests to "/echo" and "/testing.html" anything else will be handled as a request for static content. Also, because of how easy it is to hack on top of Zoi you can  fairly easily embed a scripting language if that is your cup of tea. 
 
 #### Running Zoi
 The port and host are chosen based on zoi.toml. Currently this is all the zoi.toml file does and toml parsing is not complete. However, as new features are added I will improve toml reading. In its default configuration Zoi runs on localhost:8080. If you want to run this in production change the host to {0,0,0,0} and port to 80 in zoi.toml. You will need to allow access to port 80 through your firewall.  If you want added security or load balancing you could instead run another server between Zoi and the outside internet by using port forwarding. 
@@ -22,7 +22,7 @@ The port and host are chosen based on zoi.toml. Currently this is all the zoi.to
 Significatly improved parsing of zoi.toml server section no longer has to be first section in document. I now use standard substring finding functions instead of manually checking for each substring. 
 
 #### Dec 27 2023
-Added header parsing and support for dynamic content, Manual router in main.zig is now active by default but is only coded to handle requests to "test.html" and "echo.html", anything else will go to a new fallback method that will handle any un processed request as a request for a static page. 
+Added header parsing and support for dynamic content, Manual router in main.zig is now active by default but is only coded to handle requests to "/test.html" and "/echo", anything else will go to a new fallback method that will handle any un processed request as a request for a static page. 
 
 #### Nov 19 2023
 Accept adv has been updated with improvements to regular accept function.
