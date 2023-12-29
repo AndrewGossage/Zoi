@@ -96,6 +96,16 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
     }
 
     pos = key_start.?;
+    //make sure why found a key not a value
+    while (slice[pos - 1] != '\n') {
+        pos += 1;
+        const key_inc = std.mem.indexOf(u8, slice[pos..], key);
+        if (key_inc == null) {
+            return "";
+        }
+        std.debug.print("key: {s}\n", .{slice[pos .. pos + key.len]});
+        pos += key_inc.?;
+    }
 
     while (slice[pos] != '=') pos += 1;
     while (slice[pos] == ' ' or slice[pos] == '=') pos += 1;
