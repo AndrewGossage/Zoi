@@ -19,7 +19,7 @@ The port and host are chosen based on zoi.toml. Currently this is all the zoi.to
 ### Latest Updates
 
 #### Dec 28 2023
-Significatly improved parsing of zoi.toml server section no longer has to be first section in document. I now use standard substring finding functions instead of manually checking for each substring. 
+Significatly improved parsing of zoi.toml server section no longer has to be first section in document. I now use standard substring finding functions instead of manually checking for each substring. Added support for urls with no file extension
 
 #### Dec 27 2023
 Added header parsing and support for dynamic content, Manual router in main.zig is now active by default but is only coded to handle requests to "/test.html" and "/echo", anything else will go to a new fallback method that will handle any un processed request as a request for a static page. 
