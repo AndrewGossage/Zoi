@@ -128,13 +128,14 @@ pub const Server = struct {
         if (content_length != null) {
             std.debug.print("content_length: -{s}--\n", .{content_length.?});
             l = try std.fmt.parseInt(usize, content_length.?, 0);
+            l = @min(l, 1000000);
         }
         const body = try self.getBody(&buf, allocator, conn, l);
 
         defer body.deinit();
-        std.debug.print("message: \n{s}\n\n", .{body.items});
+        std.debug.print("message: \n{s}\n\n", .{&buf});
 
-        try router.accept(.{ .method = method, .body = body, .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator });
+        try router.accept(.{ .method = method, .body = body.items, .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator });
     }
 
     pub fn accept(self: *Server) !void {

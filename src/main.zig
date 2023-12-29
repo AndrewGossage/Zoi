@@ -14,7 +14,7 @@ pub const Router = struct {
 
     pub fn echo(self: anytype, message: anytype) !void {
         _ = self;
-        try message.server.sendMessage(&message.buf, "200 ok", message.conn);
+        try message.server.sendMessage(message.body, "200 ok", message.conn);
     }
 
     pub fn accept(self: anytype, message: anytype) !void {
