@@ -41,11 +41,12 @@ pub const Server = struct {
         defer response.deinit();
 
         //add status line
-        const m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\nContent-Length: {d}", .{ status, message.len });
+        const length = message.len;
+        const m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\nContent-Length: {d}", .{ status, length });
         defer allocator.free(m);
         try response.appendSlice(m);
         try response.appendSlice("\r\n\r\n");
-        try response.appendSlice(message);
+        try response.appendSlice(message[0..length]);
         const resp: []const u8 = response.items;
 
         _ = try conn.stream.write(resp);
@@ -56,7 +57,7 @@ pub const Server = struct {
         errdefer hash.deinit();
         try hash.put("foo", "bar");
 
-        var it = std.mem.tokenize(u8, buffer, "\n");
+        var it = std.mem.tokenize(u8, buffer, "\r\n");
         _ = it.next();
         while (it.next()) |slice| {
             const divider = std.mem.indexOf(u8, slice, ":");
@@ -67,6 +68,26 @@ pub const Server = struct {
             try hash.put(slice[0 .. i - 2], slice[i..slice.len]);
         }
         return hash;
+    }
+    pub fn getBody(self: *Server, buffer: anytype, allocator: Allocator, conn: anytype, length: usize) !std.ArrayList(u8) {
+        var body = std.ArrayList(u8).init(allocator);
+        const body_start = std.mem.indexOf(u8, buffer, "\r\n\r\n");
+        _ = self;
+        if (body_start == null) {
+            return body;
+        }
+        const message_buf: [10]u8 = undefined;
+        var buf = message_buf;
+        try body.appendSlice(buffer[body_start.?..]);
+        while (body.items.len < length + 2) {
+            const r = try conn.stream.read(buf[0..]);
+            try body.appendSlice(&buf);
+            if (r < 1) {
+                return body;
+            }
+        }
+
+        return body;
     }
 
     pub fn acceptAdv(self: *Server, router: anytype) !void {
@@ -79,15 +100,15 @@ pub const Server = struct {
         };
         defer conn.stream.close();
         self.lock.unlock();
+        var gpa = self.gpa;
+        const allocator = gpa.allocator();
 
         var buf = message_buf;
         try clean_buffer(&buf, 0);
         //create allocator
-        _ = try conn.stream.read(buf[0..]);
-        std.debug.print("message: \n{s}\n\n", .{buf});
-        var gpa = self.gpa;
 
-        const allocator = gpa.allocator();
+        _ = try conn.stream.read(buf[0..]);
+
         var method = std.ArrayList(u8).init(allocator);
         defer method.deinit();
         if (eql(u8, buf[0..5], "POST /")) {
@@ -101,8 +122,19 @@ pub const Server = struct {
         defer url.deinit();
         var headers = try self.parseHeaders(&buf, allocator);
         defer headers.deinit();
+        const content_length = headers.get("Content-Length");
+        var l: usize = 0;
 
-        try router.accept(.{ .method = method, .headers = headers, .server = self, .url = url.items, .buf = buf, .conn = conn, .allocator = allocator });
+        if (content_length != null) {
+            std.debug.print("content_length: -{s}--\n", .{content_length.?});
+            l = try std.fmt.parseInt(usize, content_length.?, 0);
+        }
+        const body = try self.getBody(&buf, allocator, conn, l);
+
+        defer body.deinit();
+        std.debug.print("message: \n{s}\n\n", .{body.items});
+
+        try router.accept(.{ .method = method, .body = body, .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator });
     }
 
     pub fn accept(self: *Server) !void {
@@ -159,34 +191,6 @@ pub const Server = struct {
         }
         try self.sendMessage(b, "200 ok", conn);
     }
-
-    pub fn acceptManConn(self: *Server, conn: anytype) !void {
-        const message_buf: [1024]u8 = undefined;
-        //connection over tcp
-        defer conn.stream.close();
-
-        var buf = message_buf;
-        try clean_buffer(&buf, 0);
-
-        //create allocator
-        _ = try conn.stream.read(buf[0..]);
-        std.debug.print("message: \n{s}\n\n", .{buf});
-        var gpa = self.gpa;
-        const allocator = gpa.allocator();
-
-        //fetch and validate url and status line
-        const url = try read_url(&buf, allocator);
-        defer url.deinit();
-        if (!validate_status_line(&buf)) {
-            return;
-        }
-
-        //read file to be returned
-        const b = try read_file(url.items, allocator);
-        defer allocator.free(b);
-        _ = b.len;
-        try self.sendMessage(b, "200 ok", conn);
-    }
 };
 // add null characters to fill a buffer
 // prevents junk from displaying on screen
@@ -223,7 +227,7 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     }
 
     for (buf[pos..buf.len]) |elem| {
-        if (elem == ' ') {
+        if (elem == ' ' or elem == '?') {
             break;
         } else {
             list.append(elem) catch |err| {
