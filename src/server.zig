@@ -278,8 +278,13 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     while (list.items[dotSpot + 1] != '.' and dotSpot > 0) {
         if (list.items[dotSpot] == '.') {
             validFormat = try toml.checkFormat(list.items[dotSpot + 1 .. list.items.len], allocator);
+            break;
         }
         dotSpot -= 1;
+        if (dotSpot == 0) {
+            validFormat = try toml.checkFormat("/", allocator);
+            break;
+        }
     }
     if (validFormat == false) {
         list.deinit();

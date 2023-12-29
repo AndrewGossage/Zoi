@@ -21,7 +21,7 @@ pub const Router = struct {
         if (eql(u8, message.url, "testing.html")) {
             try self.testing(message);
             return;
-        } else if (eql(u8, message.url, "echo.html")) {
+        } else if (eql(u8, message.url, "echo")) {
             try self.echo(message);
             return;
         } else {

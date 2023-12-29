@@ -42,6 +42,7 @@ pub fn checkFormat(fileName: anytype, allocator: Allocator) !bool {
     var value = try readKeyValue("[server]", "fileTypes", allocator);
     defer _ = allocator.free(value);
     var pos: usize = 0;
+
     while (pos < value.len) {
         if (value[pos] == '"') {
             var end = pos + 1;
@@ -103,7 +104,6 @@ pub fn readKeyValue(section: anytype, key: anytype, allocator: Allocator) ![]u8 
         if (key_inc == null) {
             return "";
         }
-        std.debug.print("key: {s}\n", .{slice[pos .. pos + key.len]});
         pos += key_inc.?;
     }
 
