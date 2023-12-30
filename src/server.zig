@@ -81,7 +81,7 @@ pub const Server = struct {
         try body.appendSlice(buffer[body_start.?..]);
         while (body.items.len < length + 2) {
             const r = try conn.stream.read(buf[0..]);
-            try body.appendSlice(&buf);
+            try body.appendSlice(buf[0..r]);
             if (r < 1) {
                 return body;
             }
