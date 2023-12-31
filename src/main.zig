@@ -8,7 +8,10 @@ const Connection = std.net.Connection;
 pub const Router = struct {
     pub fn testing(self: anytype, message: anytype) !void {
         _ = self;
-        try message.server.sendMessage("<h1>Hello from Zoi!</h1>", "200 ok", message.conn);
+        var hash = std.StringHashMap([]const u8).init(message.allocator);
+        defer hash.deinit();
+        try hash.put("Custom-Header", "testing");
+        try message.server.sendMessageWithHeaders("<h1>Hello from Zoi!</h1>", "200 ok", message.conn, hash);
         return;
     }
 

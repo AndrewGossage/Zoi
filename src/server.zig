@@ -51,6 +51,43 @@ pub const Server = struct {
 
         _ = try conn.stream.write(resp);
     }
+
+    pub fn sendMessageWithHeaders(self: *Server, message: anytype, status: anytype, conn: anytype, headers: dict) !void {
+        var gpa = self.gpa;
+        const allocator = gpa.allocator();
+        //create the ArrayList for message
+        var response = std.ArrayList(u8).init(allocator);
+        defer response.deinit();
+        var header_string = std.ArrayList(u8).init(allocator);
+        defer header_string.deinit();
+
+        errdefer {
+            response.deinit();
+            header_string.deinit();
+        }
+
+        var it = headers.iterator();
+        while (it.next()) |kv| {
+            try header_string.appendSlice(kv.key_ptr.*);
+            try header_string.appendSlice(": ");
+            try header_string.appendSlice(kv.value_ptr.*);
+            try header_string.appendSlice("\r\n");
+        }
+
+        //add status line and headers
+        const length = message.len;
+        const m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\n{s}Content-Length: {d}", .{ status, header_string.items, length });
+        defer allocator.free(m);
+        errdefer allocator.free(m);
+
+        try response.appendSlice(m);
+        try response.appendSlice("\r\n\r\n");
+        try response.appendSlice(message[0..length]);
+        const resp: []const u8 = response.items;
+
+        _ = try conn.stream.write(resp);
+    }
+
     pub fn parseHeaders(self: *Server, buffer: anytype, allocator: Allocator) !dict {
         _ = self;
         var hash = dict.init(allocator);
@@ -69,6 +106,7 @@ pub const Server = struct {
         }
         return hash;
     }
+
     pub fn getBody(self: *Server, buffer: anytype, allocator: Allocator, conn: anytype, length: usize) !std.ArrayList(u8) {
         var body = std.ArrayList(u8).init(allocator);
         const body_start = std.mem.indexOf(u8, buffer, "\r\n\r\n");
