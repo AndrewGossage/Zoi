@@ -18,6 +18,9 @@ The port and host are chosen based on zoi.toml. Currently this is all the zoi.to
 
 ### Latest Updates
 
+#### Dec 30 2023
+Added ability to add headers to response 
+
 #### Dec 28 2023
 Now sends body of post request to router, no longer sends raw buffer, get request url params no longer cause error, however, they are currently just ignored. Will pull entire content body of post request up to 1 megabyte.
 Significatly improved parsing of zoi.toml server section no longer has to be first section in document. I now use standard substring finding functions instead of manually checking for each substring. Added support for urls with no file extension.
