@@ -61,11 +61,6 @@ pub const Server = struct {
         var header_string = std.ArrayList(u8).init(allocator);
         defer header_string.deinit();
 
-        errdefer {
-            response.deinit();
-            header_string.deinit();
-        }
-
         var it = headers.iterator();
         while (it.next()) |kv| {
             try header_string.appendSlice(kv.key_ptr.*);
