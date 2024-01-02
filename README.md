@@ -18,6 +18,9 @@ The port and host are chosen based on zoi.toml. Currently this is all the zoi.to
 
 ### Latest Updates
 
+#### Jan 1 2023
+Server no longer assumes a single read will fetch the entirety of the request header (server will refuse to process request over 3 kb). server.acceptAdv has replaced server.accept entirely and has been renamed for the purpose. 
+
 #### Dec 30 2023
 Added ability to add headers to response 
 
@@ -42,5 +45,5 @@ In the zoi.toml you now specify which filetypes you will allow to go out, this i
 
 
 ### Needed Work
-1. Supplemental accept functions need to be updated and code needs to be cleaned up. Files with no extension should pull a '.html' file.
-2. Currently Zoi reads naively assuming that 1 read will pull 1 request. This is unlikely to cause major issues but should be updated.
+1. Roadmap for future development
+2. URL query string parsing
