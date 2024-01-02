@@ -43,7 +43,7 @@ fn worker(server: anytype) !void {
         const router = Router{};
 
         // use server.accept for only static content
-        server.acceptAdv(router) catch |e| {
+        server.accept(router) catch |e| {
             std.debug.print("error found: {}\n", .{e});
 
             continue;

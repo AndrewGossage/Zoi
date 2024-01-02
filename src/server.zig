@@ -102,6 +102,25 @@ pub const Server = struct {
         return hash;
     }
 
+    pub fn getMessage(self: *Server, allocator: Allocator, conn: anytype) !std.ArrayList(u8) {
+        _ = self;
+        var message = std.ArrayList(u8).init(allocator);
+        const message_buf: [1024]u8 = undefined;
+        var buf = message_buf;
+        const ir = try conn.stream.read(buf[0..]);
+        try message.appendSlice(buf[0..ir]);
+
+        while ((message.items.len < 1024 * 3) and (std.mem.indexOf(u8, message.items, "\r\n\r\n") == null)) {
+            const r = try conn.stream.read(buf[0..]);
+            try message.appendSlice(buf[0..r]);
+            if (r < 1) {
+                return message;
+            }
+        }
+
+        return message;
+    }
+
     pub fn getBody(self: *Server, buffer: anytype, allocator: Allocator, conn: anytype, length: usize) !std.ArrayList(u8) {
         var body = std.ArrayList(u8).init(allocator);
         const body_start = std.mem.indexOf(u8, buffer, "\r\n\r\n");
@@ -109,7 +128,7 @@ pub const Server = struct {
         if (body_start == null) {
             return body;
         }
-        const message_buf: [10]u8 = undefined;
+        const message_buf: [1024]u8 = undefined;
         var buf = message_buf;
         try body.appendSlice(buffer[body_start.?..]);
         while (body.items.len < length + 2) {
@@ -123,9 +142,9 @@ pub const Server = struct {
         return body;
     }
 
-    pub fn acceptAdv(self: *Server, router: anytype) !void {
+    pub fn accept(self: *Server, router: anytype) !void {
         self.lock.lock(); // make sure only one thread tries to read from the port at a time
-        const message_buf: [1024]u8 = undefined;
+        //const message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = self.stream_server.accept() catch |err| {
             self.lock.unlock();
@@ -136,11 +155,12 @@ pub const Server = struct {
         var gpa = self.gpa;
         const allocator = gpa.allocator();
 
-        var buf = message_buf;
-        try clean_buffer(&buf, 0);
-        //create allocator
+        //var buf = message_buf;
+        var message = try self.getMessage(allocator, conn);
+        defer message.deinit();
+        var buf = message.items[0..];
 
-        _ = try conn.stream.read(buf[0..]);
+        //create allocator
 
         var method = std.ArrayList(u8).init(allocator);
         defer method.deinit();
@@ -151,9 +171,9 @@ pub const Server = struct {
         }
 
         //fetch and validate url and status line
-        const url = try read_url(&buf, allocator);
+        const url = try read_url(buf, allocator);
         defer url.deinit();
-        var headers = try self.parseHeaders(&buf, allocator);
+        var headers = try self.parseHeaders(buf, allocator);
         defer headers.deinit();
         const content_length = headers.get("Content-Length");
         var l: usize = 0;
@@ -163,50 +183,18 @@ pub const Server = struct {
             l = try std.fmt.parseInt(usize, content_length.?, 0);
             l = @min(l, 1000000);
         }
-        const body = try self.getBody(&buf, allocator, conn, l);
-
-        defer body.deinit();
-        std.debug.print("message: \n{s}\n\n", .{&buf});
-
-        try router.accept(.{ .method = method, .body = body.items, .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator });
-    }
-
-    pub fn accept(self: *Server) !void {
-        self.lock.lock(); // make sure only one thread tries to read from the port at a time
-        const message_buf: [1024]u8 = undefined;
-        //connection over tcp
-        const conn = self.stream_server.accept() catch |err| {
-            self.lock.unlock();
-            return err;
-        };
-        defer conn.stream.close();
-        self.lock.unlock();
-
-        var buf = message_buf;
-        try clean_buffer(&buf, 0);
-
-        //create allocator
-        _ = try conn.stream.read(buf[0..]);
-        std.debug.print("message: \n{s}\n\n", .{buf});
-        var gpa = self.gpa;
-
-        const allocator = gpa.allocator();
-
-        //fetch and validate url and status line
-        const url = try read_url(&buf, allocator);
-        defer url.deinit();
-
-        //read file to be returned
-        const b = try read_file(url.items, allocator);
-        defer allocator.free(b);
-        _ = b.len;
-
-        // send response with correct status code
-        if (eql(u8, url.items, "404.html")) {
-            try self.sendMessage(b, "404 not found", conn);
+        const body = try self.getBody(buf, allocator, conn, l);
+        if (body.items.len < 4) {
+            try self.sendMessage("Your request could not be processed.", "400 Bad Request", conn);
             return;
         }
-        try self.sendMessage(b, "200 ok", conn);
+
+        defer body.deinit();
+        std.debug.print("message: \n{s}\n\n", .{buf});
+
+        router.accept(.{ .method = method, .body = body.items[4..], .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator }) catch {
+            try self.acceptFallback(conn, url.items);
+        };
     }
 
     pub fn acceptFallback(self: *Server, conn: anytype, url: anytype) !void {
