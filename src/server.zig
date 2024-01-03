@@ -120,7 +120,6 @@ pub const Server = struct {
 
         return message;
     }
-
     pub fn getBody(self: *Server, buffer: anytype, allocator: Allocator, conn: anytype, length: usize) !std.ArrayList(u8) {
         var body = std.ArrayList(u8).init(allocator);
         const body_start = std.mem.indexOf(u8, buffer, "\r\n\r\n");
@@ -141,10 +140,41 @@ pub const Server = struct {
 
         return body;
     }
+    pub fn getParams(self: *Server, buffer: anytype, allocator: Allocator) !dict {
+        _ = self;
+        var hash = dict.init(allocator);
+        errdefer hash.deinit();
 
+        const line_end = std.mem.indexOf(u8, buffer, "\r");
+        if (line_end == null) {
+            return hash;
+        }
+
+        const start = std.mem.indexOf(u8, buffer[0..line_end.?], "?");
+        if (start == null) {
+            return hash;
+        }
+
+        const end = std.mem.indexOf(u8, buffer[start.?..], " ");
+
+        if (end == null) {
+            return hash;
+        }
+
+        var it = std.mem.tokenize(u8, buffer[start.? + 1 .. start.? + end.?], "&");
+
+        while (it.next()) |slice| {
+            const divider = std.mem.indexOf(u8, slice, "=");
+            if (divider == null) {
+                break;
+            }
+            const i = divider.? + 1;
+            try hash.put(slice[0 .. i - 1], slice[i..slice.len]);
+        }
+        return hash;
+    }
     pub fn accept(self: *Server, router: anytype) !void {
         self.lock.lock(); // make sure only one thread tries to read from the port at a time
-        //const message_buf: [1024]u8 = undefined;
         //connection over tcp
         const conn = self.stream_server.accept() catch |err| {
             self.lock.unlock();
@@ -190,9 +220,13 @@ pub const Server = struct {
         }
 
         defer body.deinit();
+
+        var params = self.getParams(buf, allocator) catch dict.init(allocator);
+        defer params.deinit();
+
         std.debug.print("message: \n{s}\n\n", .{buf});
 
-        router.accept(.{ .method = method, .body = body.items[4..], .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator }) catch {
+        router.accept(.{ .method = method, .body = body.items[4..], .params = params, .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator }) catch {
             try self.acceptFallback(conn, url.items);
         };
     }
