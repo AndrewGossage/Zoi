@@ -18,6 +18,9 @@ The port and host are chosen based on zoi.toml. Currently this is all the zoi.to
 
 ### Latest Updates
 
+#### Jan 2 2023
+Server now parses url params and passes them to router.
+
 #### Jan 1 2023
 Server no longer assumes a single read will fetch the entirety of the request header (server will refuse to process request over 3 kb). server.acceptAdv has replaced server.accept entirely and has been renamed for the purpose. 
 
