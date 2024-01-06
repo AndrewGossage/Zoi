@@ -18,6 +18,9 @@ The port and host are chosen based on zoi.toml. Currently this is all the zoi.to
 
 ### Latest Updates
 
+#### Jan 5 2023
+Now automatically adds header stating file type for certain file extensions.
+
 #### Jan 2 2023
 Server now parses url params and passes them to router.
 
@@ -34,17 +37,6 @@ Significatly improved parsing of zoi.toml server section no longer has to be fir
 #### Dec 27 2023
 Added header parsing and support for dynamic content, Manual router in main.zig is now active by default but is only coded to handle requests to "/test.html" and "/echo", anything else will go to a new fallback method that will handle any un processed request as a request for a static page. 
 
-#### Nov 19 2023
-Accept adv has been updated with improvements to regular accept function.
-
-#### Nov 13 2023
-Partially fixed an issue with toml reading where toml would only parse if only one section was present. Currently the \[server\] section still needs to be listed first but that will be fixed soon.
-
-#### Oct 3 2023
-The general purpose allocator used for server.accept is now shared across calls. Potential leaks for append calls to arrayLists in multiple functions have been fixed.
-
-#### Sep 6 2023
-In the zoi.toml you now specify which filetypes you will allow to go out, this is for security. Hidden files and folders are excluded from going out altogether for security purpose20s.
 
 
 ### Needed Work
