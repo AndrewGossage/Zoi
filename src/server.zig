@@ -20,7 +20,6 @@ pub const Server = struct {
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
 
-        //std.debug.print("Listening at {}.{}.{}.{}:{}\n", .{ host[0], host[1], host[2], host[3], port });
         return Server{
             .stream_server = server,
             .lock = .{},
@@ -72,6 +71,27 @@ pub const Server = struct {
         //add status line and headers
         const length = message.len;
         const m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\n{s}Content-Length: {d}", .{ status, header_string.items, length });
+        defer allocator.free(m);
+        errdefer allocator.free(m);
+
+        try response.appendSlice(m);
+        try response.appendSlice("\r\n\r\n");
+        try response.appendSlice(message[0..length]);
+        const resp: []const u8 = response.items;
+
+        _ = try conn.stream.write(resp);
+    }
+
+    pub fn sendMessageWithHeadersStr(self: *Server, message: anytype, status: anytype, conn: anytype, header_string: anytype) !void {
+        var gpa = self.gpa;
+        const allocator = gpa.allocator();
+        //create the ArrayList for message
+        var response = std.ArrayList(u8).init(allocator);
+        defer response.deinit();
+
+        //add status line and headers
+        const length = message.len;
+        const m = try std.fmt.allocPrint(allocator, "HTTP/1.1 {s}\r\n{s}Content-Length: {d}", .{ status, header_string, length });
         defer allocator.free(m);
         errdefer allocator.free(m);
 
@@ -209,7 +229,6 @@ pub const Server = struct {
         var l: usize = 0;
 
         if (content_length != null) {
-            std.debug.print("content_length: -{s}--\n", .{content_length.?});
             l = try std.fmt.parseInt(usize, content_length.?, 0);
             l = @min(l, 1000000);
         }
@@ -223,8 +242,6 @@ pub const Server = struct {
 
         var params = self.getParams(buf, allocator) catch dict.init(allocator);
         defer params.deinit();
-
-        std.debug.print("message: \n{s}\n\n", .{buf});
 
         router.accept(.{ .method = method, .body = body.items[4..], .params = params, .headers = headers, .server = self, .url = url.items, .conn = conn, .allocator = allocator }) catch {
             try self.acceptFallback(conn, url.items);
@@ -241,10 +258,28 @@ pub const Server = struct {
         _ = b.len;
 
         // send response with correct status code
+
         if (eql(u8, url, "404.html")) {
-            try self.sendMessage(b, "404 not found", conn);
+            try self.sendMessage(b, "404 Not Found", conn);
+            return;
+        } else if (std.mem.endsWith(u8, url, "html")) {
+            const headers = "Content-Type: text/html\r\n";
+            try self.sendMessageWithHeadersStr(b, "200 ok", conn, headers);
+            return;
+        } else if (std.mem.endsWith(u8, url, "css")) {
+            const headers = "Content-Type: text/css\r\n";
+            try self.sendMessageWithHeadersStr(b, "200 ok", conn, headers);
+            return;
+        } else if (std.mem.endsWith(u8, url, "png")) {
+            const headers = "Content-Type: image/png\r\n";
+            try self.sendMessageWithHeadersStr(b, "200 ok", conn, headers);
+            return;
+        } else if (std.mem.endsWith(u8, url, "jpg") or std.mem.endsWith(u8, url, "jpeg")) {
+            const headers = "Content-Type: image/jpeg\r\n";
+            try self.sendMessageWithHeadersStr(b, "200 ok", conn, headers);
             return;
         }
+
         try self.sendMessage(b, "200 ok", conn);
     }
 };
@@ -305,7 +340,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
         list.deinit();
         list = std.ArrayList(u8).init(allocator);
 
-        std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
         list.appendSlice("404.html") catch |err| {
             return err;
         };
@@ -318,7 +352,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
             list.deinit();
             list = std.ArrayList(u8).init(allocator);
 
-            std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
             list.appendSlice("404.html") catch |err| {
                 return err;
             };
@@ -330,10 +363,8 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     }
 
     //make sure filetype is supported
-    std.debug.print("file: {s}\n", .{list.items});
     var dotSpot: usize = list.items.len - 2;
 
-    std.debug.print("\n", .{});
     var validFormat: bool = false;
     while (list.items[dotSpot + 1] != '.' and dotSpot > 0) {
         if (list.items[dotSpot] == '.') {
@@ -350,7 +381,6 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
         list.deinit();
         list = std.ArrayList(u8).init(allocator);
 
-        std.debug.print("\n!! invalid filetype requested '{s}'\n", .{list.items});
         list.appendSlice("404.html") catch |err| {
             return err;
         };
