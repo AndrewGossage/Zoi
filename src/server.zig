@@ -221,7 +221,7 @@ pub const Server = struct {
         }
 
         //fetch and validate url and status line
-        const url = try read_url(buf, allocator);
+        const url = try readUrl(buf, allocator);
         defer url.deinit();
         var headers = try self.parseHeaders(buf, allocator);
         defer headers.deinit();
@@ -253,7 +253,7 @@ pub const Server = struct {
 
         const allocator = gpa.allocator();
 
-        const b = try read_file(url, allocator);
+        const b = try readFile(url, allocator);
         defer allocator.free(b);
         _ = b.len;
 
@@ -285,7 +285,7 @@ pub const Server = struct {
 };
 // add null characters to fill a buffer
 // prevents junk from displaying on screen
-pub fn clean_buffer(buf: anytype, start: usize) !void {
+pub fn cleanBuffer(buf: anytype, start: usize) !void {
     var i = start;
 
     while (i < buf.len) {
@@ -295,7 +295,7 @@ pub fn clean_buffer(buf: anytype, start: usize) !void {
 }
 
 // parse the url from a tcp message
-pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
+pub fn readUrl(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
     var pos: usize = 1;
@@ -389,7 +389,7 @@ pub fn read_url(buf: anytype, allocator: Allocator) !std.ArrayList(u8) {
     return list;
 }
 // make sure we are getting a valid status line
-pub fn validate_status_line(buf: []u8) bool {
+pub fn validateStatusLine(buf: []u8) bool {
     if (!(eql(u8, buf[0..5], "GET /") or eql(u8, buf[0..6], "POST /"))) return false;
     const h = "HTTP/1.1\r\n";
     var it = std.mem.window(u8, buf, h.len, 1);
@@ -403,7 +403,7 @@ pub fn validate_status_line(buf: []u8) bool {
 }
 
 //read a file and return a buffer the same size as the file
-pub fn read_file(name: anytype, allocator: Allocator) ![]u8 {
+pub fn readFile(name: anytype, allocator: Allocator) ![]u8 {
     var file = std.fs.cwd().openFile(name, .{ .mode = .read_only }) catch try std.fs.cwd().openFile("404.html", .{ .mode = .read_only });
     defer file.close();
 

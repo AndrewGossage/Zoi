@@ -5,7 +5,7 @@ const tomlName = "zoi.toml";
 
 const eql = std.mem.eql;
 pub fn readToml(allocator: Allocator) ![]u8 {
-    return try server.read_file(tomlName, allocator);
+    return try server.readFile(tomlName, allocator);
 }
 pub fn lastDigit(buf: anytype) usize {
     var end = buf.len - 1;
