@@ -63,7 +63,7 @@ pub fn server_loop() !void {
 
     var host: [4]u8 = undefined;
     _ = try toml.getHost(&host, allocator);
-    var server = try Server.init(host, port);
+    var server = try Server.init(allocator, host, port);
     defer server.deinit();
 
     for (0..worker_count) |i| {
