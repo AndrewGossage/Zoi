@@ -11,30 +11,27 @@ pub const Server = struct {
     //create buffer for reading messages
     lock: std.Thread.Mutex,
     stream_server: std.net.StreamServer,
-    gpa: @TypeOf(std.heap.GeneralPurposeAllocator(.{}){}),
+    allocator: Allocator,
 
-    pub fn init(host: [4]u8, port: u16) !Server {
+    pub fn init(allocator: Allocator, host: [4]u8, port: u16) !Server {
         const address = std.net.Address.initIp4(host, port);
 
-        const gpa = std.heap.GeneralPurposeAllocator(.{}){};
         var server = std.net.StreamServer.init(.{ .reuse_address = true });
         try server.listen(address);
 
         return Server{
             .stream_server = server,
             .lock = .{},
-            .gpa = gpa,
+            .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Server) void {
         self.stream_server.deinit();
-        _ = self.gpa.deinit();
     }
 
     pub fn sendMessage(self: *Server, message: anytype, status: anytype, conn: anytype) !void {
-        var gpa = self.gpa;
-        const allocator = gpa.allocator();
+        const allocator = self.allocator;
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
         defer response.deinit();
@@ -52,8 +49,7 @@ pub const Server = struct {
     }
 
     pub fn sendMessageWithHeaders(self: *Server, message: anytype, status: anytype, conn: anytype, headers: dict) !void {
-        var gpa = self.gpa;
-        const allocator = gpa.allocator();
+        const allocator = self.allocator;
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
         defer response.deinit();
@@ -83,8 +79,7 @@ pub const Server = struct {
     }
 
     pub fn sendMessageWithHeadersStr(self: *Server, message: anytype, status: anytype, conn: anytype, header_string: anytype) !void {
-        var gpa = self.gpa;
-        const allocator = gpa.allocator();
+        const allocator = self.allocator;
         //create the ArrayList for message
         var response = std.ArrayList(u8).init(allocator);
         defer response.deinit();
@@ -202,8 +197,7 @@ pub const Server = struct {
         };
         defer conn.stream.close();
         self.lock.unlock();
-        var gpa = self.gpa;
-        const allocator = gpa.allocator();
+        const allocator = self.allocator;
 
         //var buf = message_buf;
         var message = try self.getMessage(allocator, conn);
@@ -249,9 +243,7 @@ pub const Server = struct {
     }
 
     pub fn acceptFallback(self: *Server, conn: anytype, url: anytype) !void {
-        var gpa = self.gpa;
-
-        const allocator = gpa.allocator();
+        const allocator = self.allocator;
 
         const b = try readFile(url, allocator);
         defer allocator.free(b);
