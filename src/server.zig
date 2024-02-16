@@ -208,6 +208,11 @@ pub const Server = struct {
 
         var method = std.ArrayList(u8).init(allocator);
         defer method.deinit();
+        if (buf.len < 8) {
+            try self.sendMessage("Your request could not be processed.", "400 Bad Request", conn);
+            return;
+        }
+
         if (eql(u8, buf[0..5], "POST /")) {
             try method.appendSlice("POST");
         } else {
