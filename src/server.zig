@@ -10,15 +10,12 @@ const dict = std.StringHashMap([]const u8);
 pub const Server = struct {
     //create buffer for reading messages
     lock: std.Thread.Mutex,
-    stream_server: std.net.StreamServer,
+    stream_server: net.Server,
     allocator: Allocator,
 
     pub fn init(allocator: Allocator, host: [4]u8, port: u16) !Server {
-        const address = std.net.Address.initIp4(host, port);
-
-        var server = std.net.StreamServer.init(.{ .reuse_address = true });
-        try server.listen(address);
-
+        const address = net.Address.initIp4(host, port);
+        const server = try address.listen(.{ .reuse_address = true });
         return Server{
             .stream_server = server,
             .lock = .{},
