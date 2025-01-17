@@ -10,9 +10,13 @@ pub const ServerError = error{ Server, Client, Unknown, Default };
 
 pub const Route = struct {
     path: []const u8 = "/",
+    method: std.http.Method = .GET,
     callback: *const fn (*std.http.Server.Request, std.mem.Allocator) anyerror!void = default,
 
-    pub fn match(self: *Route, path: []const u8) bool {
+    pub fn match(self: *Route, path: []const u8, m: std.http.Method) bool {
+        if (m != self.method) {
+            return false;
+        }
         var a = std.mem.tokenizeSequence(u8, self.path, "/");
         var b = std.mem.tokenizeSequence(u8, path, "/");
         while (a.peek() != null and b.peek() != null) {
@@ -37,6 +41,13 @@ pub const Route = struct {
         request.respond(body, .{ .status = .ok, .keep_alive = false }) catch return ServerError.Server;
     }
 };
+pub fn param(s: []const u8, n: usize) ?[]const u8 {
+    var out = std.mem.tokenizeSequence(u8, s, "/");
+    for (0..n) |_| {
+        _ = out.next();
+    }
+    return out.peek();
+}
 
 pub fn four0four(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
     _ = allocator;
@@ -55,7 +66,6 @@ pub fn static(request: *std.http.Server.Request, allocator: std.mem.Allocator) !
 
         request.respond("<h1>403</h1>", .{ .status = .forbidden, .keep_alive = false }) catch return ServerError.Server;
     }
-    std.debug.print("serving static file {s}\n", .{request.head.target[1..]});
 
     const file = try std.fs.cwd().openFile(request.head.target[1..], .{ .mode = .read_only });
 
@@ -89,7 +99,7 @@ pub const Router = struct {
 
     pub fn route(self: Router, request: *std.http.Server.Request, allocator: std.mem.Allocator) anyerror!void {
         for (self.routes.items) |*r| {
-            if (r.match(request.head.target)) {
+            if (r.match(request.head.target, request.head.method)) {
                 std.debug.print("match: {s}\n", .{r.path});
                 r.callback(request, allocator) catch |err| {
                     std.debug.print("error: {}\n", .{err});
@@ -113,7 +123,9 @@ pub const Server = struct {
         allocator: std.mem.Allocator,
     ) !Server {
         var address = try std.net.Address.parseIp4(settings.address, settings.port);
-        const server = try address.listen(.{ .reuse_address = true });
+        const server = try address.listen(.{
+            .reuse_address = true,
+        });
         conf = settings;
         return .{ .settings = settings, .allocator = allocator, .address = address, .server = server };
     }
@@ -125,13 +137,38 @@ pub const Server = struct {
         const stdout = std.io.getStdOut().writer();
         try stdout.print("Listening on http://{s}\n", .{self.settings.address});
         var state: State = .waiting;
+
+        const worker_count: usize = self.settings.workers;
+        const workers: []std.Thread = try self.allocator.alloc(std.Thread, worker_count);
+        const worker_states = try self.allocator.alloc(State, worker_count);
+        defer self.allocator.free(workers);
+        defer self.allocator.free(worker_states);
+
+        // Initialize worker states
+        // Spawn workers
+        for (0..worker_count) |i| {
+            std.debug.print("Spawning worker: {}\n", .{i + 1});
+            workers[i] = try std.Thread.spawn(.{}, listen, .{ self, i, &worker_states[i], router });
+        }
+
+        // Monitor and respawn threads if they finish
+        while (true) {
+            for (0..worker_count) |i| {
+                // error state
+                if (worker_states[i] == .err) {
+                    std.debug.print("Worker {d} stopped. Restarting...\n", .{i + 1});
+                    workers[i] = try std.Thread.spawn(.{}, listen, .{ self, i, &worker_states[i], router });
+                }
+            }
+            std.time.sleep(1 * std.time.ns_per_s); // Polling interval
+        }
+
         try self.listen(0, &state, router);
     }
 
     pub fn listen(self: *Server, id: usize, state: *State, router: Router) !void {
         var server = self.server;
         const stdout = std.io.getStdOut().writer();
-        try stdout.print("here\n", .{});
         state.* = .waiting;
         errdefer state.* = .err;
         try stdout.print("path {s}\n", .{router.routes.items[0].path});
@@ -143,7 +180,6 @@ pub const Server = struct {
 
             var connection = try server.accept();
             state.* = .busy;
-            try stdout.print("{d} - {any}\n", .{ id, state });
             defer connection.stream.close();
             var buffer: [4096]u8 = undefined;
 
@@ -151,7 +187,11 @@ pub const Server = struct {
             var request = try s.receiveHead();
 
             try stdout.print("Worker #{d}: {s} \n", .{ id, request.head.target });
-            try router.route(&request, arena.allocator());
+            if (self.settings.useArena) {
+                try router.route(&request, arena.allocator());
+            } else {
+                try router.route(&request, self.allocator);
+            }
             state.* = .waiting;
             _ = arena.reset(.retain_capacity);
         }
@@ -160,4 +200,3 @@ pub const Server = struct {
 
     }
 };
-

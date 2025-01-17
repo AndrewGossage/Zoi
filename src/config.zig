@@ -6,6 +6,7 @@ address: []const u8,
 port: u16,
 workers: usize = 1,
 hideDotFiles: bool = true,
+useArena: bool = true,
 
 /// Initialize the `Config` from a JSON file.
 pub fn init(filename: []const u8, allocator: std.mem.Allocator) !Config {
@@ -38,4 +39,3 @@ pub fn deinit(self: *Config, allocator: std.mem.Allocator) void {
     allocator.free(self.address);
     self.* = undefined; // Prevent accidental use-after-free
 }
-

@@ -34,8 +34,6 @@ pub fn render(
         try new_body.appendSlice(temp_body.items);
         temp_body.clearRetainingCapacity();
     }
-    std.debug.print("body {s}\n\n\n\n", .{new_body.items});
     const out = try new_body.toOwnedSlice();
     return out;
 }
-
