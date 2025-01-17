@@ -1,8 +1,124 @@
-body {
-	font-size: 2em;
-    color: blue;
+
+@import url('https://fonts.googleapis.com/css2?family=Oswald&family=Roboto&family=Ubuntu&display=swap');
+
+body{
+    font-family: 'Ubuntu', Helvetica, sans-serif;
+    font-size: 1.3em;
+	background:linear-gradient(to right, blue 10%, gray 99%);
 	text-align: center;
-    background-color: whitesmoke;
+	color:white;
+}
+#logo{
+    max-width: 40%;
+    margin-top: 50px;
+    margin-bottom: 50px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+#barlogo{
+    height: 40px;
+    display: block;
+    
+    margin-right: auto;
 }
 
+#navbar{
+    height: 60px;
+    background-color: blue;
+}
+a:link{
+    float: right;
+    text-decoration: none;
+    
+}
+.template-string {
+	color: yellow;
 
+}
+main {
+    width: 100vw;
+    height: 100%;
+    display: flex;
+	flex-direction: column;
+    justify-content: center; /* Centers content horizontally */
+    align-items: center; /* Centers content vertically */
+}
+
+img{
+    max-height: 100%;
+}
+h1{
+	
+    color: white;
+	font-weight: 600;
+	font-size: 3em;
+    text-align: center;
+}
+h1, p{
+    max-width: 90%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+
+}
+.z {
+    background-color: white;
+    margin-top: 50px;
+    padding: 5px;
+    font-size: 9em;
+    border-radius: 5px;
+    border: none;
+    color: green;
+    box-shadow: 0px 6px 3px green;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Floating up and down effect */
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}
+
+/* Sliding shimmer effect on hover */
+.z:hover {
+    background: linear-gradient(110deg, #ffffff 40%, #e0e0e0 50%, #ffffff 60%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s linear infinite;
+}
+
+/* Keyframes for shimmer effect */
+@keyframes shimmer {
+    0% { background-position: -100% 0; }
+    100% { background-position: 100% 0; }
+}
+
+button {
+background-color: white;
+	padding:  5px;
+	border-radius: 5px;
+	border: none;
+
+	box-shadow: 0px 6px 3px ;
+	transition: 0.2s;
+	 
+}
+button:hover {
+background-color: white;
+	padding:  5px;
+	transform: translateY(-5px);
+	border-radius: 5px;
+	border: none;
+	box-shadow: 0px 9px 3px ;
+	 
+}
+.gradient-text {
+    background: blue;
+ 
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 2rem;
+    font-weight: bold;
+}

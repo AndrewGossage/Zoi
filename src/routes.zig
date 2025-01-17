@@ -14,7 +14,7 @@ pub const routes = &[_]server.Route{
 };
 
 fn index(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
-    const body = try template.render("index.html", .{ .header = "Hello,", .paragraph = "world!", .foo = "foo" }, allocator);
+    const body = try template.render("index.html", .{ .value = "This is a template string" }, allocator);
     defer allocator.free(body);
 
     try request.respond(body, .{ .status = .ok, .keep_alive = false });
@@ -40,17 +40,17 @@ fn getEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator) 
 }
 
 fn postEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
-    const Response = struct {
-        message: []const u8,
-        endpoint: []const u8,
-        id: usize,
-    };
-
+    pubCounter.lock.lock();
+    pubCounter.value += 1;
+    pubCounter.lock.unlock();
+    const reqBody = try server.parser(PostInput).json(allocator, request.server.read_buffer);
+    defer allocator.destroy(request);
+    try stdout.print("request {s}\n", .{reqBody.request});
     const point = server.param(request.head.target, 1);
-    const out = Response{
+    const out = PostResponse{
         .message = "Hello from Zoi!",
         .endpoint = point orelse "",
-        .id = 1,
+        .counter = if (std.mem.eql(u8, reqBody.request, "counter")) pubCounter.value else std.time.timestamp(),
     };
     const body = try std.json.stringifyAlloc(allocator, out, .{});
     defer allocator.free(body);
@@ -60,3 +60,23 @@ fn postEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator)
 
     try request.respond(body, .{ .status = .ok, .keep_alive = false, .extra_headers = headers });
 }
+
+const PubCounter = struct {
+    value: i64,
+    lock: std.Thread.Mutex,
+};
+
+var pubCounter = PubCounter{
+    .value = 0,
+    .lock = .{},
+};
+
+const PostResponse = struct {
+    message: []const u8,
+    endpoint: []const u8,
+    counter: i64,
+};
+
+const PostInput = struct {
+    request: []const u8,
+};

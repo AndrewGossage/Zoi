@@ -23,7 +23,9 @@ pub const Route = struct {
             if (std.mem.eql(u8, a.peek().?, "*")) {
                 return true;
             }
-            if (std.mem.startsWith(u8, a.peek().?, ":")) {} else if (!std.mem.eql(u8, a.peek().?, b.peek().?)) {
+            if (std.mem.startsWith(u8, a.peek().?, ":")) {
+                // do nothing
+            } else if (!std.mem.eql(u8, a.peek().?, b.peek().?)) {
                 return false;
             }
             _ = a.next();
@@ -200,3 +202,22 @@ pub const Server = struct {
 
     }
 };
+
+pub fn parser(T: type) type {
+    return struct {
+        pub fn json(allocator: std.mem.Allocator, buffer: []const u8) !T {
+            const body_start = std.mem.indexOf(u8, buffer, "{");
+            const body_end = std.mem.lastIndexOf(u8, buffer, "}");
+            const json_body = buffer[body_start.? .. body_end.? + 1];
+            var parsed = std.json.parseFromSlice(T, allocator, json_body, .{
+                .ignore_unknown_fields = true,
+            }) catch |err| {
+                return err;
+            };
+
+            defer parsed.deinit();
+            return parsed.value;
+        }
+    };
+}
+

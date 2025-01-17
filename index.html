@@ -1,15 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset='utf-8'>
-    <meta name='viewport' content='width=device-width,initial-scale=1'>
+  <head>
+    <meta charset="utf-8">
+    
+    <title>Hello!</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="/styles/style.css">
+  </head>
+  <body>
+      <header>
+        <nav id="navbar" class="navbar sticky-top bg-body-tertiarynavbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">
+</a>
+            
 
-    <title>Test Page</title>
+    <a href="https://github.com/AndrewGossage/Zoi" target="none">GitHub</a>
 
-    <link rel='stylesheet' href='/styles/style.css' >
-</head>
-<body>
-	<h1>$header$</h1>
-	<p>$paragraph$</p>
-</body>
+            </div>
+        </nav>
+      </header>
+		<main>
+    <div class = "z">Zoi</div>
+    <h1>Ultra-Simple Zig Server</h1>
+    <p>Zoi strives to be a server so easy you can understand every piece of it just by reading the code.  
+    </p>
 
+	  <p class="template-string">$value$</p>
+	    <button id="postButton" ><span class="gradient-text">This button sends a post request to the server</span></button>
+    <p id="result"></p>
+	</main>
+  </body>
+    <script src="/scripts/index.js"></script>
+</html>
