@@ -1,4 +1,7 @@
 # Zoi
+This branch is for version 1. Version 2 is a WIP and is incompatible with the old version.
+
+
 Ultra simple zig server for http 1.1 over tcp.
 Zoi delivers static pages over http 1.1 without relying on any external dependencies. All you need is the Zoi source code and Zig. Zoi is released under the MIT license. If you are wanting to deliver static web pages just put some html/css/js files in the directory where you run Zoi and it will automatically serve any files it finds. I make no guarantees that it is stable but I am constantly working to make improvements both to stability and usability. You can feel free to make suggestions on ways it could be improved or even contribute improvements yourself if that is something that would interest you. This version of Zoi is designed to run on a fairly recent Zig 0.12 dev. You should either use the most up to date version of Zig or you should use the "lts" branch of Zoi. 
 
