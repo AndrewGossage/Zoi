@@ -3,7 +3,7 @@ This branch is for version 2. Version 2 is a WIP and is incompatible with the ol
 Zoi is a backend written in Zig and relies only on the standard library. Zoi is not a library but instead is  essentially a template for you to use to create your own backends in Zig. 
 
 ## Version 2
-Version 2 was build almost entirely from the ground up and uses the standard library's http server instead of a homespun one. It is very much a work in progress so you should expect breaking changes frequently.
+Version 2 was built almost entirely from the ground up and uses the standard library's http server instead of a homespun one. It is very much a work in progress so you should expect breaking changes frequently.
 Zoi is not production ready without making your own changes. Version 2 is build to be much more flexible and usable than the previous version. 
 
 ## What Does Zoi Do?
