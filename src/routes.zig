@@ -1,11 +1,12 @@
 const std = @import("std");
 const Config = @import("config.zig");
 const server = @import("server.zig");
-const template = @import("template.zig");
+const fmt = @import("fmt.zig");
 const stdout = std.io.getStdOut().writer();
 
 pub const routes = &[_]server.Route{
     .{ .path = "/", .callback = index },
+    .{ .path = "/home", .callback = index },
     .{ .path = "/", .method = .POST, .callback = postEndpoint },
     .{ .path = "/styles/*", .callback = server.static },
     .{ .path = "/scripts/*", .callback = server.static },
@@ -13,11 +14,21 @@ pub const routes = &[_]server.Route{
     .{ .path = "/api/:endpoint", .method = .POST, .callback = postEndpoint },
 };
 
+const IndexQuery = struct {
+    value: ?[]const u8,
+};
+/// return index.html to the home route
 fn index(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
-    // return index.html to the home route
-    const body = try template.render("index.html", .{ .value = "This is a template string" }, allocator);
+    var value: []const u8 = "This is a template string";
+    const query = server.Parser.query(IndexQuery, allocator, request);
 
-    defer allocator.free(body);
+    if (query != null) {
+        value = try fmt.urlDecode(query.?.value.?, allocator);
+    }
+    const heap = std.heap.page_allocator;
+    const body = try fmt.renderTemplate("index.html", .{ .value = value }, heap);
+
+    defer heap.free(body);
     try request.respond(body, .{ .status = .ok, .keep_alive = false });
 }
 

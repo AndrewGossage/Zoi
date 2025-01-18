@@ -111,7 +111,8 @@ pub const Router = struct {
     /// dispatch a request to the first route with a matching path and method
     pub fn route(self: Router, request: *std.http.Server.Request, allocator: std.mem.Allocator) anyerror!void {
         for (self.routes.items) |*r| {
-            if (r.match(request.head.target, request.head.method)) {
+            const query = std.mem.indexOf(u8, request.head.target, "?") orelse request.head.target.len;
+            if (r.match(request.head.target[0..query], request.head.method)) {
                 std.debug.print("match: {s}\n", .{r.path});
                 r.callback(request, allocator) catch |err| {
                     std.debug.print("error: {}\n", .{err});
@@ -191,6 +192,7 @@ pub const Server = struct {
         errdefer state.* = .err; // on error this thread will be killed and replaced
         try stdout.print("path {s}\n", .{router.routes.items[0].path});
         var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
         while (true) {
             try stdout.print("{d} - {any}\n", .{ id, state });
             state.* = .waiting;
@@ -214,12 +216,12 @@ pub const Server = struct {
                 try router.route(&request, self.allocator);
             }
             state.* = .waiting;
-            _ = arena.reset(.retain_capacity);
+            _ = arena.reset(.free_all);
         }
     }
 };
 
-/// this object is used to parse []const u8 into a given type
+/// this struct is used to parse []const u8 into a given type
 pub const Parser = struct {
     ///parse a json encoded string to a provided type
     ///will automatically find the body in an http request.
@@ -237,22 +239,36 @@ pub const Parser = struct {
         return parsed.value;
     }
 
-    /// parse keyvalue pairs seperated by '\=' to an object
-    /// will automatically find
+    /// parses number to a given type
+    fn parseStringToNum(T: type, str: []const u8) !T {
+        return switch (@typeName(T)[0]) {
+            'i', 'u' => try std.fmt.parseInt(T, str, 10),
+            'f' => try std.fmt.parseFloat(T, str),
+            else => @compileError("Unsupported type: " ++ @typeName(T)),
+        };
+    }
+
+    /// this detects if a type is one of zigs arbitrary length numbers or a c number type
+    /// it is not compatible with comptime types or c types
+    fn isTypeNumber(T: type) bool {
+        return switch (T) {
+            else => {
+                _ = std.fmt.parseInt(u32, @typeName(T)[1..], 10) catch return false;
+                return true;
+            },
+        };
+    }
+
     fn parseStringToType(T: type, str: []const u8) !T {
         std.debug.print("&{s}\n", .{@typeName(T)});
+        if (isTypeNumber(T)) {
+            std.debug.print("It's a number all right!\n", .{});
+            return try parseStringToNum(T, str);
+        }
         return switch (T) {
             // Signed integers
             []const u8 => str,
-            i8, i16, i32, i64, i128, isize => try std.fmt.parseInt(T, str, 10),
 
-            // Unsigned integers
-            u8, u16, u32, u64, u128, usize => try std.fmt.parseInt(T, str, 10),
-
-            // Floating-point numbers
-            f16, f32, f64, f128 => try std.fmt.parseFloat(T, str),
-
-            // Boolean handling (only accepts "true" or "false")
             bool => blk: {
                 if (std.mem.eql(u8, str, "true")) break :blk true;
                 if (std.mem.eql(u8, str, "false")) break :blk false;
@@ -262,30 +278,46 @@ pub const Parser = struct {
             // Characters (Assumes ASCII single character)
 
             // Unsupported types
-            else => @compileError("Unsupported type: " ++ @typeName(T)),
+            else => error.Default,
         };
     }
-    /// parse keyvalue pairs seperated by a '=' []const u8 to an object
-    /// sep is used to divide the key value pairs
+
+    /// takes a request and a type and returns query params that match that type.
+    pub fn query(T: type, allocator: std.mem.Allocator, request: *std.http.Server.Request) ?T {
+        const qIndex = std.mem.indexOf(u8, request.head.target, "?") orelse return null;
+        return keyValue(T, allocator, request.head.target[qIndex + 1 ..], "&") catch return null;
+    }
+
+    /// this function parses key value pairs, memory is leaky so an arena is suggested
     pub fn keyValue(T: type, allocator: std.mem.Allocator, buffer: []const u8, sep: []const u8) !T {
         var x: T = undefined;
         var tokens = std.mem.tokenizeSequence(u8, buffer, sep);
         while (tokens.peek() != null) {
             inline for (std.meta.fields(T)) |f| {
+                // to be safe we need to set nullable values first to null;
+                if (@typeName(f.type)[0] == '?') {
+                    @field(x, f.name) = null;
+                }
+
                 const token = tokens.peek().?;
                 const l = try std.fmt.allocPrint(allocator, "{s}=", .{f.name});
                 defer allocator.free(l);
 
                 if (std.mem.startsWith(u8, token, l)) {
                     const i = f.name.len + 1;
-                    if (f.type != []const u8) {
-                        @field(x, f.name) = try parseStringToType(f.type, token[i..]);
+
+                    if (f.type == []const u8 or f.type == ?[]const u8) {
+                        std.debug.print("string \n", .{});
+
+                        const field = try allocator.alloc(u8, token.len - i);
+                        std.mem.copyForwards(u8, field, token[i..]);
+                        @field(x, f.name) = field;
                     } else {
-                        @field(x, f.name) = token[i..];
+                        @field(x, f.name) = try parseStringToType(f.type, token[i..]);
                     }
-                    std.debug.print("\n\n{s} {s}  ${s}$ \n\n", .{ token, f.name, token[i..] });
                 }
             }
+
             _ = tokens.next();
         }
         return x;
