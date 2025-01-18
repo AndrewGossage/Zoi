@@ -1,7 +1,6 @@
 const std = @import("std");
 const Config = @import("config.zig");
 const server = @import("server.zig");
-const template = @import("template.zig");
 const r = @import("routes.zig");
 
 const Foo = struct { bar: u1, foo: []const u8 };

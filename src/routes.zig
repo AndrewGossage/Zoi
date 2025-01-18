@@ -23,7 +23,7 @@ fn index(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void 
     const query = server.Parser.query(IndexQuery, allocator, request);
 
     if (query != null) {
-        value = try fmt.urlDecode(query.?.value.?, allocator);
+        value = try fmt.urlDecode(query.?.value orelse "default", allocator);
     }
     const heap = std.heap.page_allocator;
     const body = try fmt.renderTemplate("index.html", .{ .value = value }, heap);

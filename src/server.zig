@@ -298,7 +298,6 @@ pub const Parser = struct {
                 if (@typeName(f.type)[0] == '?') {
                     @field(x, f.name) = null;
                 }
-
                 const token = tokens.peek().?;
                 const l = try std.fmt.allocPrint(allocator, "{s}=", .{f.name});
                 defer allocator.free(l);
