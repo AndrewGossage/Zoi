@@ -8,6 +8,8 @@ pub const State = enum {
 
 pub const ServerError = error{ Server, Client, Unknown, Default };
 
+/// A stuct for housing an http route paramaters have a ':' wilcards are '\*'
+/// if a requested route matches the path  and the method the callback function is called
 pub const Route = struct {
     path: []const u8 = "/",
     method: std.http.Method = .GET,
@@ -43,6 +45,8 @@ pub const Route = struct {
         request.respond(body, .{ .status = .ok, .keep_alive = false }) catch return ServerError.Server;
     }
 };
+
+///this function returns the nth token from a url string and can be used to get parameters
 pub fn param(s: []const u8, n: usize) ?[]const u8 {
     var out = std.mem.tokenizeSequence(u8, s, "/");
     for (0..n) |_| {
@@ -51,17 +55,21 @@ pub fn param(s: []const u8, n: usize) ?[]const u8 {
     return out.peek();
 }
 
+///this function returns a 404 error
 pub fn four0four(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
     _ = allocator;
     const body = "<h1>NOT FOUND</h1>";
     request.respond(body, .{ .status = .not_found, .keep_alive = false }) catch return ServerError.Server;
 }
+
+///this function returns a 500 error
 pub fn five00(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
     _ = allocator;
-    const body = "<h1>NOT FOUND</h1>";
+    const body = "<h1>ERROR</h1>";
     request.respond(body, .{ .status = .internal_server_error, .keep_alive = false }) catch return ServerError.Server;
 }
 
+///function for serving static files, the path on a route with this method should end with '\*' or ':<parameter>' unless only one file is meant to be served on the route
 pub fn static(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
     if (conf.hideDotFiles and std.mem.containsAtLeast(u8, request.head.target, 1, "/.")) {
         std.debug.print("Refusing to serve {s}\n", .{request.head.target[1..]});
@@ -78,19 +86,20 @@ pub fn static(request: *std.http.Server.Request, allocator: std.mem.Allocator) !
     defer allocator.free(body);
     request.respond(body, .{ .status = .ok, .keep_alive = false }) catch return ServerError.Server;
 }
+///this route returns a 404 error and is called when no other route matched
+const notFound = Route{ .callback = four0four };
 
-pub const notFound = Route{ .callback = four0four };
-pub const internalError = Route{ .callback = five00 };
+/// this route return 500 and is called after an error.
+const internalError = Route{ .callback = five00 };
 
+///this struct is a wrapper around a std.ArrayList(Route) call Router.route to find the correct route for a request
 pub const Router = struct {
     routes: std.ArrayList(Route),
 
     pub fn init(allocator: std.mem.Allocator) !Router {
-        var router = Router{
+        const router = Router{
             .routes = std.ArrayList(Route).init(allocator),
         };
-
-        try router.routes.append(Route{ .path = "/hello", .callback = Route.default });
 
         return router;
     }
@@ -99,6 +108,7 @@ pub const Router = struct {
         self.routes.deinit();
     }
 
+    /// dispatch a request to the first route with a matching path and method
     pub fn route(self: Router, request: *std.http.Server.Request, allocator: std.mem.Allocator) anyerror!void {
         for (self.routes.items) |*r| {
             if (r.match(request.head.target, request.head.method)) {
@@ -113,8 +123,10 @@ pub const Router = struct {
         return;
     }
 };
+/// this is here to allow or disalow the static function from serving dotfiles
 var conf: *Config = undefined;
 
+/// A wrapper arount std.net.Server with builtin multithreading, arena based memory management and routing
 pub const Server = struct {
     settings: *Config,
     allocator: std.mem.Allocator,
@@ -132,6 +144,7 @@ pub const Server = struct {
         return .{ .settings = settings, .allocator = allocator, .address = address, .server = server };
     }
 
+    /// listen on the address and port indicated from the provided config, dispatch requests via the router to the provided routes
     pub fn runServer(self: *Server, router: Router) !void {
         //const allocator = self.allocator;
         var server = self.server;
@@ -168,27 +181,33 @@ pub const Server = struct {
         try self.listen(0, &state, router);
     }
 
+    /// should normally not be called directly, intead call runServer
     pub fn listen(self: *Server, id: usize, state: *State, router: Router) !void {
         var server = self.server;
         const stdout = std.io.getStdOut().writer();
+
         state.* = .waiting;
-        errdefer state.* = .err;
+
+        errdefer state.* = .err; // on error this thread will be killed and replaced
         try stdout.print("path {s}\n", .{router.routes.items[0].path});
-        // Mark the thread as active
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         while (true) {
             try stdout.print("{d} - {any}\n", .{ id, state });
             state.* = .waiting;
 
             var connection = try server.accept();
-            state.* = .busy;
             defer connection.stream.close();
+
+            state.* = .busy; // tell the parent server that we are answering a request
             var buffer: [4096]u8 = undefined;
 
             var s = std.http.Server.init(connection, &buffer);
             var request = try s.receiveHead();
 
+            //print which path we are reaching
             try stdout.print("Worker #{d}: {s} \n", .{ id, request.head.target });
+
+            // this is to ensure clean memory usage but can be bypassed in config.json
             if (self.settings.useArena) {
                 try router.route(&request, arena.allocator());
             } else {
@@ -197,27 +216,78 @@ pub const Server = struct {
             state.* = .waiting;
             _ = arena.reset(.retain_capacity);
         }
-
-        // Mark the thread as finished when exiting
-
     }
 };
 
-pub fn parser(T: type) type {
-    return struct {
-        pub fn json(allocator: std.mem.Allocator, buffer: []const u8) !T {
-            const body_start = std.mem.indexOf(u8, buffer, "{");
-            const body_end = std.mem.lastIndexOf(u8, buffer, "}");
-            const json_body = buffer[body_start.? .. body_end.? + 1];
-            var parsed = std.json.parseFromSlice(T, allocator, json_body, .{
-                .ignore_unknown_fields = true,
-            }) catch |err| {
-                return err;
-            };
+/// this object is used to parse []const u8 into a given type
+pub const Parser = struct {
+    ///parse a json encoded string to a provided type
+    ///will automatically find the body in an http request.
+    pub fn json(T: type, allocator: std.mem.Allocator, buffer: []const u8) !T {
+        const body_start = std.mem.indexOf(u8, buffer, "{");
+        const body_end = std.mem.lastIndexOf(u8, buffer, "}");
+        const json_body = buffer[body_start.? .. body_end.? + 1];
+        var parsed = std.json.parseFromSlice(T, allocator, json_body, .{
+            .ignore_unknown_fields = true,
+        }) catch |err| {
+            return err;
+        };
 
-            defer parsed.deinit();
-            return parsed.value;
+        defer parsed.deinit();
+        return parsed.value;
+    }
+
+    /// parse keyvalue pairs seperated by '\=' to an object
+    /// will automatically find
+    fn parseStringToType(T: type, str: []const u8) !T {
+        std.debug.print("&{s}\n", .{@typeName(T)});
+        return switch (T) {
+            // Signed integers
+            []const u8 => str,
+            i8, i16, i32, i64, i128, isize => try std.fmt.parseInt(T, str, 10),
+
+            // Unsigned integers
+            u8, u16, u32, u64, u128, usize => try std.fmt.parseInt(T, str, 10),
+
+            // Floating-point numbers
+            f16, f32, f64, f128 => try std.fmt.parseFloat(T, str),
+
+            // Boolean handling (only accepts "true" or "false")
+            bool => blk: {
+                if (std.mem.eql(u8, str, "true")) break :blk true;
+                if (std.mem.eql(u8, str, "false")) break :blk false;
+                return error.InvalidBoolean;
+            },
+
+            // Characters (Assumes ASCII single character)
+
+            // Unsupported types
+            else => @compileError("Unsupported type: " ++ @typeName(T)),
+        };
+    }
+    /// parse keyvalue pairs seperated by a '=' []const u8 to an object
+    /// sep is used to divide the key value pairs
+    pub fn keyValue(T: type, allocator: std.mem.Allocator, buffer: []const u8, sep: []const u8) !T {
+        var x: T = undefined;
+        var tokens = std.mem.tokenizeSequence(u8, buffer, sep);
+        while (tokens.peek() != null) {
+            inline for (std.meta.fields(T)) |f| {
+                const token = tokens.peek().?;
+                const l = try std.fmt.allocPrint(allocator, "{s}=", .{f.name});
+                defer allocator.free(l);
+
+                if (std.mem.startsWith(u8, token, l)) {
+                    const i = f.name.len + 1;
+                    if (f.type != []const u8) {
+                        @field(x, f.name) = try parseStringToType(f.type, token[i..]);
+                    } else {
+                        @field(x, f.name) = token[i..];
+                    }
+                    std.debug.print("\n\n{s} {s}  ${s}$ \n\n", .{ token, f.name, token[i..] });
+                }
+            }
+            _ = tokens.next();
         }
-    };
-}
-
+        return x;
+    }
+};

@@ -14,9 +14,10 @@ pub const routes = &[_]server.Route{
 };
 
 fn index(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
+    // return index.html to the home route
     const body = try template.render("index.html", .{ .value = "This is a template string" }, allocator);
-    defer allocator.free(body);
 
+    defer allocator.free(body);
     try request.respond(body, .{ .status = .ok, .keep_alive = false });
 }
 
@@ -25,7 +26,6 @@ fn getEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator) 
         message: []const u8,
         id: usize,
     };
-
     const out = Response{
         .message = "Hello from Zoi!",
         .id = 1,
@@ -43,7 +43,7 @@ fn postEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator)
     pubCounter.lock.lock();
     pubCounter.value += 1;
     pubCounter.lock.unlock();
-    const reqBody = try server.parser(PostInput).json(allocator, request.server.read_buffer);
+    const reqBody = try server.Parser.json(PostInput, allocator, request.server.read_buffer);
     defer allocator.destroy(request);
     try stdout.print("request {s}\n", .{reqBody.request});
     const point = server.param(request.head.target, 1);

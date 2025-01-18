@@ -4,12 +4,16 @@ const server = @import("server.zig");
 const template = @import("template.zig");
 const r = @import("routes.zig");
 
+const Foo = struct { bar: i32, foo: []const u8 };
+
 const stdout = std.io.getStdOut().writer();
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
+    const foo = try server.Parser.keyValue(Foo, allocator, "bar=1&foo=\"238\"&", "&");
+    std.debug.print("foo {d} {s} {any}\n", .{ foo.bar, foo.foo, foo });
     var settings = try Config.init("config.json", allocator);
     defer settings.deinit(allocator);
     var routes = std.ArrayList(server.Route).init(allocator);
