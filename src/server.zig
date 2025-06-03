@@ -77,7 +77,10 @@ pub fn static(request: *std.http.Server.Request, allocator: std.mem.Allocator) !
         request.respond("<h1>403</h1>", .{ .status = .forbidden, .keep_alive = false }) catch return ServerError.Server;
     }
 
-    const file = try std.fs.cwd().openFile(request.head.target[1..], .{ .mode = .read_only });
+    const file = std.fs.cwd().openFile(request.head.target[1..], .{ .mode = .read_only }) catch {
+        four0four(request, allocator) catch return ServerError.Server;
+        return;
+    };
 
     defer file.close();
     const file_size = try file.getEndPos();
