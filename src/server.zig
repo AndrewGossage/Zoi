@@ -1,5 +1,6 @@
 const std = @import("std");
 const Config = @import("config.zig");
+
 pub const State = enum {
     busy,
     err,
@@ -36,7 +37,6 @@ pub const Route = struct {
         if ((a.peek() == null and b.peek() != null) or (a.peek() != null and b.next() == null)) {
             return false;
         }
-
         return true;
     }
 
@@ -73,15 +73,12 @@ pub fn five00(request: *std.http.Server.Request, allocator: std.mem.Allocator) !
 pub fn static(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
     if (conf.hideDotFiles and std.mem.containsAtLeast(u8, request.head.target, 1, "/.")) {
         std.debug.print("Refusing to serve {s}\n", .{request.head.target[1..]});
-
         request.respond("<h1>403</h1>", .{ .status = .forbidden, .keep_alive = false }) catch return ServerError.Server;
     }
-
     const file = std.fs.cwd().openFile(request.head.target[1..], .{ .mode = .read_only }) catch {
         four0four(request, allocator) catch return ServerError.Server;
         return;
     };
-
     defer file.close();
     const file_size = try file.getEndPos();
     const body: []u8 = try allocator.alloc(u8, file_size);
@@ -89,9 +86,9 @@ pub fn static(request: *std.http.Server.Request, allocator: std.mem.Allocator) !
     defer allocator.free(body);
     request.respond(body, .{ .status = .ok, .keep_alive = false }) catch return ServerError.Server;
 }
+
 ///this route returns a 404 error and is called when no other route matched
 const notFound = Route{ .callback = four0four };
-
 /// this route return 500 and is called after an error.
 const internalError = Route{ .callback = five00 };
 
@@ -103,7 +100,6 @@ pub const Router = struct {
         const router = Router{
             .routes = std.ArrayList(Route).init(allocator),
         };
-
         return router;
     }
 
@@ -127,6 +123,7 @@ pub const Router = struct {
         return;
     }
 };
+
 /// this is here to allow or disalow the static function from serving dotfiles
 var conf: *Config = undefined;
 
@@ -136,6 +133,7 @@ pub const Server = struct {
     allocator: std.mem.Allocator,
     server: std.net.Server,
     address: std.net.Address,
+
     pub fn init(
         settings: *Config,
         allocator: std.mem.Allocator,
@@ -153,10 +151,10 @@ pub const Server = struct {
         //const allocator = self.allocator;
         var server = self.server;
         defer server.deinit();
-        const stdout = std.io.getStdOut().writer();
+        var buf: [1000]u8 = undefined;
+        var stdout = std.fs.File.writer(std.fs.File.stdout(), &buf).interface;
         try stdout.print("Listening on http://{s}\n", .{self.settings.address});
         var state: State = .waiting;
-
         const worker_count: usize = self.settings.workers;
         const workers: []std.Thread = try self.allocator.alloc(std.Thread, worker_count);
         const worker_states = try self.allocator.alloc(State, worker_count);
@@ -179,34 +177,36 @@ pub const Server = struct {
                     workers[i] = try std.Thread.spawn(.{}, listen, .{ self, i, &worker_states[i], router });
                 }
             }
-            std.time.sleep(1 * std.time.ns_per_s); // Polling interval
+            const now = std.time.milliTimestamp();
+            while (std.time.milliTimestamp() - now < 1000) {}
         }
-
         try self.listen(0, &state, router);
     }
 
     /// should normally not be called directly, intead call runServer
     pub fn listen(self: *Server, id: usize, state: *State, router: Router) !void {
         var server = self.server;
-        const stdout = std.io.getStdOut().writer();
-
+        var buf: [1000]u8 = undefined;
+        var stdout = std.fs.File.writer(std.fs.File.stdout(), &buf).interface;
         state.* = .waiting;
-
         errdefer state.* = .err; // on error this thread will be killed and replaced
         try stdout.print("path {s}\n", .{router.routes.items[0].path});
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
+
         while (true) {
             try stdout.print("{d} - {any}\n", .{ id, state });
             state.* = .waiting;
-
             var connection = try server.accept();
             defer connection.stream.close();
-
             state.* = .busy; // tell the parent server that we are answering a request
-            var buffer: [4096]u8 = undefined;
 
-            var s = std.http.Server.init(connection, &buffer);
+            var buffer: [4096]u8 = undefined;
+            var buff2: [4096]u8 = undefined;
+            // Fixed: Create reader and writer from connection.stream
+            var stream_reader = connection.stream.reader(&buffer);
+            var stream_writer = connection.stream.writer(&buff2);
+            var s = std.http.Server.init(stream_reader.interface(), &stream_writer.interface);
             var request = try s.receiveHead();
 
             //print which path we are reaching
@@ -237,7 +237,6 @@ pub const Parser = struct {
         }) catch |err| {
             return err;
         };
-
         defer parsed.deinit();
         return parsed.value;
     }
@@ -271,15 +270,12 @@ pub const Parser = struct {
         return switch (T) {
             // Signed integers
             []const u8 => str,
-
             bool => blk: {
                 if (std.mem.eql(u8, str, "true")) break :blk true;
                 if (std.mem.eql(u8, str, "false")) break :blk false;
                 return error.InvalidBoolean;
             },
-
             // Characters (Assumes ASCII single character)
-
             // Unsupported types
             else => error.Default,
         };
@@ -304,13 +300,10 @@ pub const Parser = struct {
                 const token = tokens.peek().?;
                 const l = try std.fmt.allocPrint(allocator, "{s}=", .{f.name});
                 defer allocator.free(l);
-
                 if (std.mem.startsWith(u8, token, l)) {
                     const i = f.name.len + 1;
-
                     if (f.type == []const u8 or f.type == ?[]const u8) {
                         std.debug.print("string \n", .{});
-
                         const field = try allocator.alloc(u8, token.len - i);
                         std.mem.copyForwards(u8, field, token[i..]);
                         @field(x, f.name) = field;
@@ -319,9 +312,9 @@ pub const Parser = struct {
                     }
                 }
             }
-
             _ = tokens.next();
         }
         return x;
     }
 };
+

@@ -13,9 +13,9 @@ pub fn main() !void {
 
     var settings = try Config.init("config.json", allocator);
     defer settings.deinit(allocator);
-    var routes = std.ArrayList(server.Route).init(allocator);
-    try routes.appendSlice(r.routes);
-    defer routes.deinit();
+    var routes = std.ArrayList(server.Route){};
+    try routes.appendSlice(allocator, r.routes);
+    defer routes.deinit(allocator);
     var s = try server.Server.init(&settings, allocator);
     try s.runServer(.{ .routes = routes });
 }

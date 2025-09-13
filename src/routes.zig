@@ -2,19 +2,13 @@ const std = @import("std");
 const Config = @import("config.zig");
 const server = @import("server.zig");
 const fmt = @import("fmt.zig");
-const r = @import("requests.zig");
 const stdout = std.io.getStdOut().writer();
 
 pub const routes = &[_]server.Route{
     .{ .path = "/", .callback = index },
     .{ .path = "/home", .callback = index },
-    .{ .path = "/", .method = .POST, .callback = postEndpoint },
     .{ .path = "/styles/*", .callback = server.static },
     .{ .path = "/scripts/*", .callback = server.static },
-    .{ .path = "/fetch", .callback = getData },
-    .{ .path = "/api/:endpoint", .callback = getEndpoint },
-
-    .{ .path = "/api/:endpoint", .method = .POST, .callback = postEndpoint },
 };
 
 const IndexQuery = struct {
@@ -35,61 +29,12 @@ fn index(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void 
     try request.respond(body, .{ .status = .ok, .keep_alive = false });
 }
 
-fn getEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
-    const Response = struct {
-        message: []const u8,
-        id: usize,
-    };
-    const out = Response{
-        .message = "Hello from Zoi!",
-        .id = 1,
-    };
-    const body = try std.json.stringifyAlloc(allocator, out, .{});
-    defer allocator.free(body);
-    const headers = &[_]std.http.Header{
-        .{ .name = "Content-Type", .value = "application/json" },
-    };
-
-    try request.respond(body, .{ .status = .ok, .keep_alive = false, .extra_headers = headers });
-}
 const DataResponse = struct {
     userId: i32,
     id: i32,
     title: []const u8,
     body: []const u8,
 };
-fn getData(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
-    const headers = &[_]std.http.Header{
-        .{ .name = "Content-Type", .value = "application/json" },
-    };
-    const out = try r.get_json(DataResponse, "https://jsonplaceholder.typicode.com/posts/1", headers, allocator);
-    const body = try std.json.stringifyAlloc(allocator, out, .{});
-    defer allocator.free(body);
-
-    try request.respond(body, .{ .status = .ok, .keep_alive = false, .extra_headers = headers });
-}
-
-fn postEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
-    pubCounter.lock.lock();
-    pubCounter.value += 1;
-    pubCounter.lock.unlock();
-    const reqBody = try server.Parser.json(PostInput, allocator, request.server.read_buffer);
-    defer allocator.destroy(request);
-    try stdout.print("request {s}\n", .{reqBody.request});
-    const point = server.param(request.head.target, 1);
-    const out = PostResponse{
-        .message = "Hello from Zoi!",
-        .endpoint = point orelse "",
-        .counter = if (std.mem.eql(u8, reqBody.request, "counter")) pubCounter.value else std.time.timestamp(),
-    };
-    const body = try std.json.stringifyAlloc(allocator, out, .{});
-    defer allocator.free(body);
-    const headers = &[_]std.http.Header{
-        .{ .name = "Content-Type", .value = "application/json" },
-    };
-
-    try request.respond(body, .{ .status = .ok, .keep_alive = false, .extra_headers = headers });
-}
 
 const PubCounter = struct {
     value: i64,

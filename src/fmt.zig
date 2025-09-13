@@ -6,36 +6,36 @@ pub fn renderTemplate(
     allocator: std.mem.Allocator,
 ) ![]const u8 {
     const file = try std.fs.cwd().openFile(path, .{ .mode = .read_only });
-
     defer file.close();
     const file_size = try file.getEndPos();
     const body: []u8 = try allocator.alloc(u8, file_size);
     _ = try file.readAll(body);
     defer allocator.free(body);
-    var new_body = std.ArrayList(u8).init(allocator);
-    defer new_body.deinit();
-    try new_body.appendSlice(body);
 
-    var temp_body = std.ArrayList(u8).init(allocator);
-    defer temp_body.deinit();
+    // Updated for Zig 0.15: ArrayList is now unmanaged by default
+    var new_body = std.ArrayList(u8){};
+    defer new_body.deinit(allocator);
+    try new_body.appendSlice(allocator, body);
+
+    var temp_body = std.ArrayList(u8){};
+    defer temp_body.deinit(allocator);
 
     inline for (std.meta.fields(@TypeOf(x))) |f| {
         const l = try std.fmt.allocPrint(allocator, "${s}$", .{f.name});
         std.debug.print("\n\n{s}\n\n", .{l});
         defer allocator.free(l);
-
         var pieces = std.mem.tokenizeSequence(u8, new_body.items, l);
         while (pieces.peek() != null) {
-            try temp_body.appendSlice(pieces.next().?);
+            try temp_body.appendSlice(allocator, pieces.next().?);
             if (pieces.peek() != null) {
-                try temp_body.appendSlice(@field(x, f.name));
+                try temp_body.appendSlice(allocator, @field(x, f.name));
             }
         }
         new_body.clearRetainingCapacity();
-        try new_body.appendSlice(temp_body.items);
+        try new_body.appendSlice(allocator, temp_body.items);
         temp_body.clearRetainingCapacity();
     }
-    const out = try new_body.toOwnedSlice();
+    const out = try new_body.toOwnedSlice(allocator);
     return out;
 }
 
@@ -115,27 +115,28 @@ pub fn urlDecode(
     body: []const u8,
     allocator: std.mem.Allocator,
 ) ![]const u8 {
-    var temp_body = std.ArrayList(u8).init(allocator);
-    defer temp_body.deinit();
+    // Updated for Zig 0.15: ArrayList is now unmanaged by default
+    var temp_body = std.ArrayList(u8){};
+    defer temp_body.deinit(allocator);
 
-    var new_body = std.ArrayList(u8).init(allocator);
-    defer new_body.deinit();
-    try new_body.appendSlice(body);
+    var new_body = std.ArrayList(u8){};
+    defer new_body.deinit(allocator);
+    try new_body.appendSlice(allocator, body);
 
     inline for (0..encoded_values.len) |i| {
         const l = encoded_values[i];
-
         var pieces = std.mem.tokenizeSequence(u8, new_body.items, l);
         while (pieces.peek() != null) {
-            try temp_body.appendSlice(pieces.next().?);
+            try temp_body.appendSlice(allocator, pieces.next().?);
             if (pieces.peek() != null) {
-                try temp_body.appendSlice(decoded_values[i]);
+                try temp_body.appendSlice(allocator, decoded_values[i]);
             }
         }
         new_body.clearRetainingCapacity();
-        try new_body.appendSlice(temp_body.items);
+        try new_body.appendSlice(allocator, temp_body.items);
         temp_body.clearRetainingCapacity();
     }
-    const out = try new_body.toOwnedSlice();
+    const out = try new_body.toOwnedSlice(allocator);
     return out;
 }
+
