@@ -43,19 +43,33 @@ fn postEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator)
     pubCounter.lock.lock();
     pubCounter.value += 1;
     pubCounter.lock.unlock();
+
     const reqBody = try server.Parser.json(PostInput, allocator, request);
+
+    std.debug.print("rqBody: {any}\n", .{reqBody});
+
+    std.debug.print("request {s}\n", .{reqBody.request});
+    const point = server.param(request.head.target, 1);
     const out = PostResponse{
         .message = "Hello from Zoi!",
-        .endpoint = "",
+        .endpoint = point orelse "",
         .counter = if (std.mem.eql(u8, reqBody.request, "counter")) pubCounter.value else std.time.timestamp(),
     };
-    const heap = std.heap.page_allocator;
-    const body = try fmt.renderTemplate("index.html", .{ .value = "hi" }, heap);
-    defer heap.free(body);
+    _ = out;
+    std.debug.print("\n2 request\n", .{});
+
     const headers = &[_]std.http.Header{
         .{ .name = "Content-Type", .value = "application/json" },
     };
-    try server.sendJson(allocator, request, out, .{ .status = .ok, .keep_alive = false, .extra_headers = headers });
+    _ = headers;
+    const heap = std.heap.page_allocator;
+
+    const body = try fmt.renderTemplate("index.html", .{ .value = "hi" }, heap);
+
+    defer heap.free(body);
+    try request.respond(body, .{ .status = .ok, .keep_alive = false });
+
+    //try server.sendJson(allocator, request, out, .{ .status = .ok, .keep_alive = false, .extra_headers = headers });
 }
 
 const PubCounter = struct {
