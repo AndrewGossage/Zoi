@@ -242,7 +242,8 @@ pub const Parser = struct {
         const reader = try request.readerExpectContinue(buf);
 
         // Use readAlloc instead of readAllAlloc
-        const body = try reader.readAlloc(allocator, 4096);
+        const body = try reader.readAlloc(allocator, request.head.content_length.?);
+
         defer allocator.free(body);
 
         std.debug.print("Body: {s}\n", .{body});
