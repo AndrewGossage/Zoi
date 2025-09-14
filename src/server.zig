@@ -215,7 +215,6 @@ pub const Server = struct {
             var stream_writer = connection.stream.writer(&buff2);
             var s = std.http.Server.init(stream_reader.interface(), &stream_writer.interface);
             var request = try s.receiveHead();
-
             //print which path we are reaching
             try stdout.print("Worker #{d}: {s} \n", .{ id, request.head.target });
             // this is to ensure clean memory usage but can be bypassed in config.json
