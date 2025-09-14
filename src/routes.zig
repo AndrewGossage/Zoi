@@ -45,7 +45,9 @@ fn postEndpoint(request: *std.http.Server.Request, allocator: std.mem.Allocator)
     pubCounter.lock.unlock();
 
     const reqBody = try server.Parser.json(PostInput, allocator, request);
-    defer allocator.destroy(request);
+
+    std.debug.print("rqBody: {any}\n", .{reqBody});
+
     std.debug.print("request {s}\n", .{reqBody.request});
     const point = server.param(request.head.target, 1);
     const out = PostResponse{

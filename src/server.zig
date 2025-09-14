@@ -238,24 +238,26 @@ pub const Parser = struct {
         // For Zig 0.15.1, we need to use readerExpectContinue properly
         const buf = try allocator.alloc(u8, 4096);
         defer allocator.free(buf);
-
         const reader = try request.readerExpectContinue(buf);
 
-        // Use readAlloc instead of readAllAlloc
+        // Read the body
         const body = try reader.readAlloc(allocator, request.head.content_length.?);
-
         defer allocator.free(body);
 
         std.debug.print("Body: {s}\n", .{body});
 
-        // Parse the JSON body
-        var parsed = try std.json.parseFromSlice(T, allocator, body, .{
+        // Parse the JSON body - this creates a copy of the data
+        const parsed = try std.json.parseFromSlice(T, allocator, body, .{
             .ignore_unknown_fields = true,
+            .allocate = .alloc_always, // Force allocation of strings
         });
-        defer parsed.deinit();
 
+        std.debug.print("Parsed: {any}\n", .{parsed});
+
+        // Don't free parsed here - the caller needs to call parsed.deinit()
         return parsed.value;
-    } // parses number to a given type
+    }
+    // parses number to a given type
     fn parseStringToNum(T: type, str: []const u8) !T {
         return switch (@typeName(T)[0]) {
             'i', 'u' => try std.fmt.parseInt(T, str, 10),
