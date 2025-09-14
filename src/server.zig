@@ -55,6 +55,13 @@ pub fn param(s: []const u8, n: usize) ?[]const u8 {
     return out.peek();
 }
 
+pub fn sendJson(allocator: std.mem.Allocator, request: *std.http.Server.Request, object: anytype, options: std.http.Server.Request.RespondOptions) !void {
+    const body = try std.json.Stringify.valueAlloc(allocator, object, .{});
+    defer allocator.free(body);
+
+    try request.respond(body, options);
+}
+
 ///this function returns a 404 error
 pub fn four0four(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void {
     _ = allocator;
@@ -211,7 +218,6 @@ pub const Server = struct {
 
             //print which path we are reaching
             try stdout.print("Worker #{d}: {s} \n", .{ id, request.head.target });
-
             // this is to ensure clean memory usage but can be bypassed in config.json
             if (self.settings.useArena) {
                 try router.route(&request, arena.allocator());
@@ -228,20 +234,27 @@ pub const Server = struct {
 pub const Parser = struct {
     ///parse a json encoded string to a provided type
     ///will automatically find the body in an http request.
-    pub fn json(T: type, allocator: std.mem.Allocator, buffer: []const u8) !T {
-        const body_start = std.mem.indexOf(u8, buffer, "{");
-        const body_end = std.mem.lastIndexOf(u8, buffer, "}");
-        const json_body = buffer[body_start.? .. body_end.? + 1];
-        var parsed = std.json.parseFromSlice(T, allocator, json_body, .{
-            .ignore_unknown_fields = true,
-        }) catch |err| {
-            return err;
-        };
-        defer parsed.deinit();
-        return parsed.value;
-    }
+    pub fn json(T: type, allocator: std.mem.Allocator, request: *std.http.Server.Request) !T {
+        // For Zig 0.15.1, we need to use readerExpectContinue properly
+        const buf = try allocator.alloc(u8, 4096);
+        defer allocator.free(buf);
 
-    /// parses number to a given type
+        const reader = try request.readerExpectContinue(buf);
+
+        // Use readAlloc instead of readAllAlloc
+        const body = try reader.readAlloc(allocator, 4096);
+        defer allocator.free(body);
+
+        std.debug.print("Body: {s}\n", .{body});
+
+        // Parse the JSON body
+        var parsed = try std.json.parseFromSlice(T, allocator, body, .{
+            .ignore_unknown_fields = true,
+        });
+        defer parsed.deinit();
+
+        return parsed.value;
+    } // parses number to a given type
     fn parseStringToNum(T: type, str: []const u8) !T {
         return switch (@typeName(T)[0]) {
             'i', 'u' => try std.fmt.parseInt(T, str, 10),
@@ -317,4 +330,3 @@ pub const Parser = struct {
         return x;
     }
 };
-
