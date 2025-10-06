@@ -184,8 +184,7 @@ pub const Server = struct {
                     workers[i] = try std.Thread.spawn(.{}, listen, .{ self, i, &worker_states[i], router });
                 }
             }
-            const now = std.time.milliTimestamp();
-            while (std.time.milliTimestamp() - now < 1000) {}
+            std.Thread.sleep(1_000_000_000);
         }
         try self.listen(0, &state, router);
     }
