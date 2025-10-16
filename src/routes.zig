@@ -14,6 +14,9 @@ pub const routes = &[_]server.Route{
     .{ .path = "/api/:endpoint", .method = .POST, .callback = postEndpoint },
 };
 
+
+
+
 const IndexQuery = struct {
     value: ?[]const u8,
 };
@@ -22,6 +25,7 @@ fn index(request: *std.http.Server.Request, allocator: std.mem.Allocator) !void 
     var value: []const u8 = "This is a template string";
     const query = server.Parser.query(IndexQuery, allocator, request);
 
+    _ = try server.Parser.parseCookies(allocator, request);
     if (query != null) {
         value = try fmt.urlDecode(query.?.value orelse "default", allocator);
     }

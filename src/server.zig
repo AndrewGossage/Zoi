@@ -140,6 +140,16 @@ pub const Server = struct {
     allocator: std.mem.Allocator,
     server: std.net.Server,
     address: std.net.Address,
+    shouldClose: bool = false,
+    lock: std.Thread.Mutex = .{},
+
+    pub fn triggerClose(self: *Server) void{
+        self.lock.lock();
+        self.shouldClose = true;
+        self.lock.unlock();
+
+    }
+
 
     pub fn init(
         settings: *Config,
@@ -148,6 +158,7 @@ pub const Server = struct {
         var address = try std.net.Address.parseIp4(settings.address, settings.port);
         const server = try address.listen(.{
             .reuse_address = true,
+            
         });
         conf = settings;
         return .{ .settings = settings, .allocator = allocator, .address = address, .server = server };
@@ -177,14 +188,31 @@ pub const Server = struct {
 
         // Monitor and respawn threads if they finish
         while (true) {
+            var idle_count: usize = 0;
+
             for (0..worker_count) |i| {
                 // error state
+                if (worker_states[i] == .waiting){
+                    idle_count += 1;
+                }
                 if (worker_states[i] == .err) {
                     std.debug.print("Worker {d} stopped. Restarting...\n", .{i + 1});
                     workers[i] = try std.Thread.spawn(.{}, listen, .{ self, i, &worker_states[i], router });
                 }
             }
-            std.Thread.sleep(1_000_000_000);
+            if (self.shouldClose == true and idle_count >= worker_count) {
+
+                for (0..worker_count) |i| {
+                    std.debug.print("Killing worker: {}\n", .{i + 1});
+                }
+                std.process.exit(0);
+                
+                std.debug.print("\nClosing due to external request\n", .{});
+                return;
+            }
+
+
+           std.Thread.sleep(10000); 
         }
         try self.listen(0, &state, router);
     }
@@ -200,19 +228,23 @@ pub const Server = struct {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
 
-        while (true) {
+        while (!self.shouldClose) {
             try stdout.print("{d} - {any}\n", .{ id, state });
             state.* = .waiting;
             var connection = try server.accept();
             defer connection.stream.close();
             state.* = .busy; // tell the parent server that we are answering a request
-
             var buffer: [4096]u8 = undefined;
             var buff2: [4096]u8 = undefined;
             // Fixed: Create reader and writer from connection.stream
             var stream_reader = connection.stream.reader(&buffer);
             var stream_writer = connection.stream.writer(&buff2);
+            
             var s = std.http.Server.init(stream_reader.interface(), &stream_writer.interface);
+            if (self.shouldClose){
+                return;
+            } 
+
             var request = try s.receiveHead();
             //print which path we are reaching
             try stdout.print("Worker #{d}: {s} \n", .{ id, request.head.target });
@@ -255,6 +287,34 @@ pub const Parser = struct {
         // Don't free parsed here - the caller needs to call parsed.deinit()
         return parsed.value;
     }
+
+     // parse cookies to a stringhashmap
+     pub fn parseCookies(allocator: std.mem.Allocator, request: *std.http.Server.Request) !std.StringHashMap([]const u8) {
+        var cookies = std.StringHashMap([]const u8).init(allocator) ;
+        var it = request.iterateHeaders();
+        var ele = it.next();
+        while (ele != null){
+            if (std.mem.eql(u8, ele.?.name, "Cookie")){
+                var i = std.mem.tokenizeSequence(u8, ele.?.value, "; ");
+                while (i.peek() != null) {
+                    const kv = i.peek().?;
+                    const delim = std.mem.indexOfScalar(u8, kv, '=');
+                    if (delim != null){
+                        const k = kv[0..delim.?];
+                        const v = kv[delim.? + 1 .. kv.len];
+                        std.debug.print("\ncookie name: {s}\n", .{k});
+                        std.debug.print("\ncookie value: {s}\n", .{v});
+                        try cookies.put(k, v);
+                    }
+                    _ = i.next();
+                }
+            }
+            ele = it.next();
+        }
+        return cookies;
+    }
+
+
     // parses number to a given type
     fn parseStringToNum(T: type, str: []const u8) !T {
         return switch (@typeName(T)[0]) {
