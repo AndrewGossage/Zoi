@@ -6,7 +6,6 @@ const builtin = @import("builtin");
 const crypto = std.crypto;
 
 
-
 pub const AuthBody = struct {
     exp: u64,
     iat: u64,
@@ -21,18 +20,7 @@ pub const execresult = struct {
     stderr: []const u8,
 };
 
-pub fn execbash(allocator: std.mem.Allocator, command: []const u8) !execresult {
-    const shell = if (builtin.os.tag == .linux) "/bin/bash" else "/usr/local/bin/bash";
-    const result = try std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &[_][]const u8{ shell, "-c", command },
-        .max_output_bytes = 1024 * 1024, // 1mb max output
-    });
-    return execresult{
-        .stdout = result.stdout,
-        .stderr = result.stderr,
-    };
-}
+
 
 
 const indexquery = struct {
@@ -40,9 +28,7 @@ const indexquery = struct {
 };
 
 
-pub fn decodeAuth(allocator: std.mem.Allocator, cookie: []const u8) !AuthBody {
-    const secret = try std.process.getEnvVarOwned(allocator, "JWT_SECRET");
-    defer allocator.free(secret);
+pub fn decodeAuth(allocator: std.mem.Allocator, cookie: []const u8,  secret: []const u8) !AuthBody {
     
     // Split JWT into parts
     var parts = std.mem.splitScalar(u8, cookie, '.');
@@ -63,7 +49,7 @@ pub fn decodeAuth(allocator: std.mem.Allocator, cookie: []const u8) !AuthBody {
     
     // Calculate expected signature
     var expected_sig: [crypto.auth.hmac.sha2.HmacSha256.mac_length]u8 = undefined;
-    crypto.auth.hmac.sha2.HmacSha256.create(&expected_sig, message, secret);
+    crypto.auth.hmac.sha2.HmacSha256.create(&expected_sig, message, std.mem.span(secret));
     
     if (!std.mem.eql(u8, sig_decoded, &expected_sig)) {
         return error.InvalidSignature;
@@ -84,3 +70,4 @@ pub fn decodeAuth(allocator: std.mem.Allocator, cookie: []const u8) !AuthBody {
     
     return parsed.value;
 }
+
