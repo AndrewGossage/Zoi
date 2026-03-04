@@ -14,28 +14,16 @@ pub const AuthBody = struct {
     value: []const u8,
 };
 
-
-pub const execresult = struct {
-    stdout: []const u8,
-    stderr: []const u8,
-};
-
-
-
-
-const indexquery = struct {
-    value: ?[]const u8,
-};
-
-
-pub fn decodeAuth(allocator: std.mem.Allocator, cookie: []const u8,  secret: []const u8) !AuthBody {
-    
+pub fn decodeAuth(T: type, allocator: std.mem.Allocator, cookie: []const u8, secret_key: ?[]const u8) !T {
+    if (secret_key == null){
+        return error.NoSecret;
+    }
+    const secret = secret_key.?;
     // Split JWT into parts
     var parts = std.mem.splitScalar(u8, cookie, '.');
     const header_b64 = parts.next() orelse return error.InvalidJWT;
     const payload_b64 = parts.next() orelse return error.InvalidJWT;
     const signature_b64 = parts.next() orelse return error.InvalidJWT;
-    
     // Verify signature
     const message = cookie[0..(header_b64.len + 1 + payload_b64.len)];
     
@@ -49,7 +37,7 @@ pub fn decodeAuth(allocator: std.mem.Allocator, cookie: []const u8,  secret: []c
     
     // Calculate expected signature
     var expected_sig: [crypto.auth.hmac.sha2.HmacSha256.mac_length]u8 = undefined;
-    crypto.auth.hmac.sha2.HmacSha256.create(&expected_sig, message, std.mem.span(secret));
+    crypto.auth.hmac.sha2.HmacSha256.create(&expected_sig, message, secret);
     
     if (!std.mem.eql(u8, sig_decoded, &expected_sig)) {
         return error.InvalidSignature;
@@ -61,13 +49,11 @@ pub fn decodeAuth(allocator: std.mem.Allocator, cookie: []const u8,  secret: []c
     defer allocator.free(decoded);
     
     try decoder.decode(decoded, payload_b64);
-    server.debugPrint("debug: {s}\n", .{decoded});
     // Parse JSON
-    const parsed = try std.json.parseFromSlice(AuthBody, allocator, decoded, .{
+    const parsed = try std.json.parseFromSlice(T, allocator, decoded, .{
         .ignore_unknown_fields = true,
         .allocate = .alloc_always,
     });
     
     return parsed.value;
 }
-
