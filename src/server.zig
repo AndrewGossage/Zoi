@@ -74,7 +74,7 @@ pub const Route = struct {
             _ = a.next();
             _ = b.next();
         }
-        if ((a.peek() == null and b.peek() != null) or (a.peek() != null and b.next() == null)) {
+        if ((a.peek() == null and b.peek() != null) or (a.peek() != null and b.peek() == null)) {
             return false;
         }
         return true;
