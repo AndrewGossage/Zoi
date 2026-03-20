@@ -149,7 +149,32 @@ pub fn static(c: *Context) !void {
     const body: []u8 = try allocator.alloc(u8, file_size);
     var reader = file.reader(c.io, body);
     _ = try reader.interface.readSliceAll(body);
-    request.respond(body, .{ .status = .ok, .keep_alive = false }) catch return ServerError.Server;
+    const target = request.head.target;
+    const mime: []const u8 = if (std.mem.endsWith(u8, target, ".css"))
+        "text/css"
+    else if (std.mem.endsWith(u8, target, ".js"))
+        "application/javascript"
+    else if (std.mem.endsWith(u8, target, ".html") or std.mem.endsWith(u8, target, ".htm"))
+        "text/html"
+    else if (std.mem.endsWith(u8, target, ".svg"))
+        "image/svg+xml"
+    else if (std.mem.endsWith(u8, target, ".png"))
+        "image/png"
+    else if (std.mem.endsWith(u8, target, ".jpg") or std.mem.endsWith(u8, target, ".jpeg"))
+        "image/jpeg"
+    else if (std.mem.endsWith(u8, target, ".ico"))
+        "image/x-icon"
+    else if (std.mem.endsWith(u8, target, ".woff2"))
+        "font/woff2"
+    else if (std.mem.endsWith(u8, target, ".woff"))
+        "font/woff"
+    else
+        "application/octet-stream";
+    const cache_headers = [_]std.http.Header{
+        .{ .name = "Cache-Control", .value = "public, max-age=3600" },
+        .{ .name = "Content-Type", .value = mime },
+    };
+    request.respond(body, .{ .status = .ok, .keep_alive = false, .extra_headers = &cache_headers }) catch return ServerError.Server;
 }
 
 ///this route returns a 404 error and is called when no other route matched
