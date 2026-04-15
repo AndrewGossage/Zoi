@@ -12,11 +12,11 @@ pub fn renderTemplate(
     defer allocator.free(body);
     var reader = file.reader(io, body);
     _ = try reader.interface.readSliceAll(body);
-    var new_body = std.ArrayList(u8){};
+    var new_body = std.ArrayList(u8).empty;
     defer new_body.deinit(allocator);
     try new_body.appendSlice(allocator, body);
 
-    var temp_body = std.ArrayList(u8){};
+    var temp_body = std.ArrayList(u8).empty;
     defer temp_body.deinit(allocator);
 
     inline for (std.meta.fields(@TypeOf(x))) |f| {

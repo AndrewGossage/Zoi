@@ -20,7 +20,7 @@ pub fn main(init: std.process.Init) !void {
     defer settings.deinit(allocator);
    
     // initialize
-    var routes = std.ArrayList(server.Route){};
+    var routes = std.ArrayList(server.Route).empty;
     try routes.appendSlice(allocator, r.routes);
     defer routes.deinit(allocator);
     var s = try server.Server.init(init.gpa, init.io, &settings);

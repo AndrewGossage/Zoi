@@ -2,22 +2,18 @@ const std = @import("std");
 const Config = @import("config.zig");
 const builtin = @import("builtin");
 
-
 pub var log_writer: ?*std.Io.Writer = null;
 
 pub fn debugPrint(comptime fstring: []const u8, values: anytype) void {
-    if (log_writer == null){
-        if (builtin.mode == .Debug){
+    if (log_writer == null) {
+        if (builtin.mode == .Debug) {
             std.debug.print(fstring, values);
         }
         return;
     }
     log_writer.?.print(fstring, values) catch return;
     log_writer.?.flush() catch return;
-
-} 
-
-
+}
 
 pub const Callback: type = *const fn (*Context) anyerror!void;
 
@@ -301,7 +297,7 @@ pub const Server = struct {
     pub fn listen(self: *Server, id: usize, state: *State, router: Router) !void {
         const io = self.io;
 
-        var recv_buffer: [4096]u8 = undefined;
+        var recv_buffer: [16384]u8 = undefined;
         var send_buffer: [4096]u8 = undefined;
 
         state.* = .waiting;
@@ -312,6 +308,8 @@ pub const Server = struct {
 
         while (!self.should_close) {
             var stream = try self.server.accept(io);
+            defer stream.close(io);
+
             var connection_reader = stream.reader(io, &recv_buffer);
             var connection_writer = stream.writer(io, &send_buffer);
             var server: std.http.Server = .init(&connection_reader.interface, &connection_writer.interface);
@@ -323,7 +321,13 @@ pub const Server = struct {
             if (self.should_close) {
                 return;
             }
-            var request = try server.receiveHead();
+            var request = server.receiveHead() catch |err| {
+                if (err == error.HttpHeadersOversize) {
+                    _ = arena.reset(.free_all);
+                    continue;
+                }
+                return err;
+            };
             //print which path we are reaching
             debugPrint("Worker #{d}: {s} \n", .{ id, request.head.target });
             // this is to ensure clean memory usage but can be bypassed in config.json
@@ -404,7 +408,7 @@ pub const Parser = struct {
         const qIndex = std.mem.indexOf(u8, request.head.target, "?") orelse return null;
         return keyValue(T, allocator, request.head.target[qIndex + 1 ..], "&") catch return null;
     }
-    
+
     pub const ParseErrors = error{MissingField};
 
     /// converts params to struct
@@ -420,7 +424,7 @@ pub const Parser = struct {
                     return ParseErrors.MissingField;
                 }
             };
-            if (t == null){
+            if (t == null) {
                 if (@typeInfo(f.type) == .optional) {
                     @field(x, f.name) = null;
                     continue;
@@ -428,7 +432,7 @@ pub const Parser = struct {
                     return ParseErrors.MissingField;
                 }
             }
-            
+
             @field(x, f.name) = t.?;
         }
         return x;
@@ -556,10 +560,10 @@ pub const Parser = struct {
         body: []const u8,
         allocator: std.mem.Allocator,
     ) ![]const u8 {
-        var temp_body = std.ArrayList(u8){};
+        var temp_body = std.ArrayList(u8).empty;
         defer temp_body.deinit(allocator);
 
-        var new_body = std.ArrayList(u8){};
+        var new_body = std.ArrayList(u8).empty;
         defer new_body.deinit(allocator);
         try new_body.appendSlice(allocator, body);
 
