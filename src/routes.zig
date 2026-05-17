@@ -27,11 +27,12 @@ fn index(c: *Context) !void {
     var value: []const u8 = "This is a template string, use a query string to replace it. (?value=something)";
     const query = server.Parser.query(struct { value: ?[]const u8 }, c.allocator, c.request);
     if (query != null) {
-        value = try server.Parser.urlDecode(query.?.value orelse "default", c.allocator);
+        const decoded = try server.Parser.urlDecode(query.?.value orelse "default", c.allocator);
+        value = try fmt.htmlEscape(c.allocator, decoded);
     }
     const body = try fmt.renderTemplate(c.io, "./static/index.html", .{ .value = value }, c.allocator);
     defer c.allocator.free(body);
-    try c.request.respond(body, .{ .status = .ok, .keep_alive = false });
+    try c.request.respond(body, .{ .status = .ok, .keep_alive = c.keep_alive });
 }
 
 const TestParams = struct {
@@ -40,7 +41,7 @@ const TestParams = struct {
 
 fn param_test(c: *Context) !void {
     const params = server.Parser.params(TestParams, c) catch TestParams{.param = "Could not parse"};
-    try c.request.respond(params.param, .{ .status = .ok, .keep_alive = false });
+    try c.request.respond(params.param, .{ .status = .ok, .keep_alive = c.keep_alive });
 }
 
 const PubCounter = struct {
@@ -75,5 +76,5 @@ fn postEndpoint(c: *Context) !void {
     const headers = &[_]std.http.Header{
         .{ .name = "Content-Type", .value = "application/json" },
     };
-    try server.sendJson(c.allocator, c.request, out, .{ .status = .ok, .keep_alive = false, .extra_headers = headers });
+    try server.sendJson(c.allocator, c.request, out, .{ .status = .ok, .keep_alive = c.keep_alive, .extra_headers = headers });
 }

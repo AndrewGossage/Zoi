@@ -20,6 +20,7 @@ pub const Callback: type = *const fn (*Context) anyerror!void;
 pub const Context = struct {
     request: *std.http.Server.Request,
     next: bool = true,
+    keep_alive: bool = false,
     allocator: std.mem.Allocator,
     io: std.Io,
     route: *const Route,
@@ -31,7 +32,7 @@ pub const Context = struct {
         try self.values.put(key, value);
     }
     pub fn init(request: *std.http.Server.Request, route: *const Route, allocator: std.mem.Allocator, io: std.Io) !Context {
-        return .{ .allocator = allocator, .request = request, .route = route, .io = io, .values = .init(allocator) };
+        return .{ .allocator = allocator, .request = request, .route = route, .io = io, .values = .init(allocator), .keep_alive = requestKeepAlive(request) };
     }
 };
 
@@ -42,6 +43,18 @@ pub const State = enum {
 };
 
 pub const ServerError = error{ Server, Client, Unknown, Default };
+
+fn requestKeepAlive(request: *std.http.Server.Request) bool {
+    if (isUnderPressure()) return false;
+    if (request.head.version != .@"HTTP/1.1") return false;
+    var it = request.iterateHeaders();
+    while (it.next()) |h| {
+        if (std.ascii.eqlIgnoreCase(h.name, "connection")) {
+            if (std.ascii.eqlIgnoreCase(h.value, "close")) return false;
+        }
+    }
+    return true;
+}
 
 /// a handler for a route
 /// http route paramaters have a ':' wilcards have '\*'
@@ -89,12 +102,12 @@ pub const Route = struct {
 
     pub fn default(c: *Context) !void {
         const body = std.fmt.allocPrint(c.allocator, "hello world from {s}", .{c.request.head.target}) catch return ServerError.Server;
-        c.request.respond(body, .{ .status = .ok, .keep_alive = false }) catch return ServerError.Server;
+        c.request.respond(body, .{ .status = .ok, .keep_alive = c.keep_alive }) catch return ServerError.Server;
     }
 };
 
 pub fn sendJson(allocator: std.mem.Allocator, request: *std.http.Server.Request, object: anytype, options: std.http.Server.Request.RespondOptions) !void {
-    const body = try std.json.Stringify.valueAlloc(allocator, object, .{});
+    const body = try std.json.Stringify.valueAlloc(allocator, object, .{ .emit_null_optional_fields = false });
     defer allocator.free(body);
 
     try request.respond(body, options);
@@ -103,7 +116,7 @@ pub fn sendJson(allocator: std.mem.Allocator, request: *std.http.Server.Request,
 ///this function returns a 404 error
 pub fn four0four(c: *Context) !void {
     const body = "<h1>NOT FOUND</h1>";
-    c.request.respond(body, .{ .status = .not_found, .keep_alive = false }) catch return ServerError.Server;
+    c.request.respond(body, .{ .status = .not_found, .keep_alive = c.keep_alive }) catch return ServerError.Server;
 }
 
 ///this function returns a 500 error
@@ -117,8 +130,13 @@ pub fn five00(request: *std.http.Server.Request, allocator: std.mem.Allocator) !
 pub fn static(c: *Context) !void {
     const request = c.request;
     const allocator = c.allocator;
-    if (conf.hideDotFiles and std.mem.containsAtLeast(u8, request.head.target, 1, "/.")) {
-        request.respond("<h1>403</h1>", .{ .status = .forbidden, .keep_alive = false }) catch return ServerError.Server;
+    if (conf.hideDotFiles and (std.mem.containsAtLeast(u8, request.head.target, 1, "/.") or
+        std.mem.containsAtLeast(u8, request.head.target, 1, "/%2E") or
+        std.mem.containsAtLeast(u8, request.head.target, 1, "/%2e") or
+        std.mem.containsAtLeast(u8, request.head.target, 1, "/%252E") or
+        std.mem.containsAtLeast(u8, request.head.target, 1, "/%252e")))
+    {
+        request.respond("<h1>403</h1>", .{ .status = .forbidden, .keep_alive = c.keep_alive }) catch return ServerError.Server;
         return;
     }
     debugPrint("static {s}\n", .{request.head.target[1..]});
@@ -170,11 +188,14 @@ pub fn static(c: *Context) !void {
         .{ .name = "Cache-Control", .value = "public, max-age=3600" },
         .{ .name = "Content-Type", .value = mime },
     };
-    request.respond(body, .{ .status = .ok, .keep_alive = false, .extra_headers = &cache_headers }) catch return ServerError.Server;
+    request.respond(body, .{ .status = .ok, .keep_alive = c.keep_alive, .extra_headers = &cache_headers }) catch return ServerError.Server;
 }
 
 ///this route returns a 404 error and is called when no other route matched
 const notFound = Route{ .callback = four0four };
+
+// var buf: [256]*Conn = undefined;
+// pub var q = std.Io.Queue(*Conn).init(&buf);
 
 ///this struct is a wrapper around a std.ArrayList(Route) call Router.route to find the correct route for a request
 pub const Router = struct {
@@ -192,28 +213,37 @@ pub const Router = struct {
     }
 
     /// dispatch a request to the first route with a matching path and method
-    pub fn route(self: Router, io: std.Io, request: *std.http.Server.Request, allocator: std.mem.Allocator) anyerror!void {
+    /// returns whether the connection should be kept alive
+    pub fn route(self: Router, io: std.Io, request: *std.http.Server.Request, allocator: std.mem.Allocator) anyerror!bool {
         for (self.routes.items) |*r| {
             const query = std.mem.indexOf(u8, request.head.target, "?") orelse request.head.target.len;
             if (r.match(request.head.target[0..query], request.head.method)) {
                 var c: Context = try .init(request, r, allocator, io);
-
                 debugPrint("match: {s}\n", .{r.path});
                 r.run(&c) catch |err| {
                     debugPrint("error: {}\n", .{err});
-                    return;
+                    return false;
                 };
-                return;
+                return c.keep_alive;
             }
         }
         var c: Context = try .init(request, &notFound, allocator, io);
-        notFound.callback(&c) catch return ServerError.Server;
-        return;
+        notFound.callback(&c) catch return false;
+        return c.keep_alive;
     }
 };
 
 /// this is here to allow or disalow the static function from serving dotfiles
 var conf: *Config = undefined;
+
+const queue_capacity: usize = 128;
+const pressure_threshold: usize = queue_capacity * 3 / 4;
+pub const keep_alive_timeout_ms: u64 = 30_000;
+var active_connections: std.atomic.Value(usize) = .init(0);
+
+pub fn isUnderPressure() bool {
+    return active_connections.load(.monotonic) >= pressure_threshold;
+}
 
 /// A wrapper around std.Io.net.Server with builtin multithreading, arena based memory management and routing
 pub const Server = struct {
@@ -236,120 +266,160 @@ pub const Server = struct {
         settings: *Config,
     ) !Server {
         const addr: std.Io.net.IpAddress = try .resolve(io, settings.address, settings.port);
-        const tcp_server = try addr.listen(io, .{});
+        const tcp_server = try addr.listen(io, .{ .reuse_address = true });
         conf = settings;
         return .{ .settings = settings, .allocator = allocator, .io = io, .address = addr, .server = tcp_server, .lock = std.Io.Mutex.init };
     }
 
-    /// listen on the address and port indicated from the provided config, dispatch requests via the router to the provided routes
     pub fn runServer(self: *Server, router: Router) !void {
-        //const allocator = self.allocator;
-        var server = self.server;
-        defer server.deinit(self.io);
-        var buf: [1024]u8 = undefined;
+        defer self.server.deinit(self.io);
 
+        var buf: [1024]u8 = undefined;
         var stdout_file_writer: std.Io.File.Writer = .init(.stdout(), self.io, &buf);
         const stdout = &stdout_file_writer.interface;
-
         try stdout.print("Listening on http://{s}\n", .{self.settings.address});
 
-        var state: State = .waiting;
-        const worker_count: usize = self.settings.workers;
-        const workers: []std.Thread = try self.allocator.alloc(std.Thread, worker_count);
-        const worker_states = try self.allocator.alloc(State, worker_count);
-        defer self.allocator.free(workers);
-        defer self.allocator.free(worker_states);
+        var queue_buf: [queue_capacity]*Conn = undefined;
+        var queue = std.Io.Queue(*Conn).init(&queue_buf);
 
-        // Initialize worker states
-        // Spawn workers
-        for (0..worker_count) |i| {
-            debugPrint("Spawning worker: {}\n", .{i + 1});
-            workers[i] = try std.Thread.spawn(.{}, listen, .{ self, i, &worker_states[i], router });
+        var group: std.Io.Group = .init;
+        defer group.cancel(self.io);
+
+        group.async(self.io, acceptConnections, .{ self.io, &self.server, self.allocator, &queue });
+        for (0..self.settings.workers) |_| {
+            group.async(self.io, handleConnections, .{ self.io, &queue, router });
         }
-
-        // Monitor and respawn threads if they finish
-        while (true) {
-            var idle_count: usize = 0;
-
-            for (0..worker_count) |i| {
-                // error state
-                if (worker_states[i] == .waiting) {
-                    idle_count += 1;
-                }
-                if (worker_states[i] == .err) {
-                    debugPrint("Worker {d} stopped. Restarting...\n", .{i + 1});
-                    workers[i] = try std.Thread.spawn(.{}, listen, .{ self, i, &worker_states[i], router });
-                }
-            }
-            if (self.should_close == true and idle_count >= worker_count) {
-                for (0..worker_count) |i| {
-                    debugPrint("Killing worker: {}\n", .{i + 1});
-                }
-                std.process.exit(0);
-            }
-
-            _ = try std.Io.sleep(self.io, std.Io.Duration.fromMilliseconds(1000), std.Io.Clock.real);
-        }
-        try self.listen(0, &state, router);
+        try group.await(self.io);
     }
 
-    /// should normally not be called directly, intead call runServer
-    pub fn listen(self: *Server, id: usize, state: *State, router: Router) !void {
-        const io = self.io;
+    /// respond helper — automatically disables keep-alive when the server is under pressure
+    pub fn respond(self: *const Server, c: *Context, body: []const u8, options: std.http.Server.Request.RespondOptions) !void {
+        _ = self;
+        var opts = options;
+        if (isUnderPressure()) opts.keep_alive = false;
+        try c.request.respond(body, opts);
+    }
 
-        var recv_buffer: [16384]u8 = undefined;
-        var send_buffer: [4096]u8 = undefined;
-
-        state.* = .waiting;
-        errdefer state.* = .err; // on error this thread will be killed and replaced
-        debugPrint("path {s}\n", .{router.routes.items[0].path});
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-
-        while (!self.should_close) {
-            var stream = try self.server.accept(io);
-            defer stream.close(io);
-
-            var connection_reader = stream.reader(io, &recv_buffer);
-            var connection_writer = stream.writer(io, &send_buffer);
-            var server: std.http.Server = .init(&connection_reader.interface, &connection_writer.interface);
-            debugPrint("{d} - {any}\n", .{ id, state });
-            state.* = .waiting;
-            state.* = .busy; // tell the parent server that we are answering a request
-            // Fixed: Create reader and writer from connection.stream
-
-            if (self.should_close) {
-                return;
-            }
-            var request = server.receiveHead() catch |err| {
-                if (err == error.HttpHeadersOversize) {
-                    _ = arena.reset(.free_all);
-                    continue;
-                }
-                return err;
-            };
-            //print which path we are reaching
-            debugPrint("Worker #{d}: {s} \n", .{ id, request.head.target });
-            // this is to ensure clean memory usage but can be bypassed in config.json
-            try router.route(self.io, &request, arena.allocator());
-            state.* = .waiting;
-            _ = arena.reset(.free_all);
-        }
+    /// sendJson helper — automatically disables keep-alive when the server is under pressure
+    pub fn sendJsonResponse(self: *const Server, c: *Context, object: anytype, options: std.http.Server.Request.RespondOptions) !void {
+        _ = self;
+        var opts = options;
+        if (isUnderPressure()) opts.keep_alive = false;
+        try sendJson(c.allocator, c.request, object, opts);
     }
 };
+
+pub const Conn = struct {
+    arena: std.heap.ArenaAllocator,
+    allocator: std.mem.Allocator,
+    stream: std.Io.net.Stream,
+    reader: std.Io.net.Stream.Reader,
+    recv_buffer: [8192]u8,
+    io: std.Io,
+    last_active: std.Io.Clock.Timestamp,
+
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, stream: std.Io.net.Stream) !*Conn {
+        const conn = try allocator.create(Conn);
+        _ = active_connections.fetchAdd(1, .monotonic);
+        conn.allocator = allocator;
+        conn.stream = stream;
+        conn.io = io;
+        conn.arena = std.heap.ArenaAllocator.init(allocator);
+        conn.reader = conn.stream.reader(io, &conn.recv_buffer);
+        conn.last_active = std.Io.Clock.Timestamp.now(io, .real);
+        return conn;
+    }
+
+    pub fn deinit(conn: *Conn) void {
+        _ = active_connections.fetchSub(1, .monotonic);
+        conn.stream.close(conn.io);
+        conn.arena.deinit();
+        conn.allocator.destroy(conn);
+    }
+};
+
+fn acceptConnections(io: std.Io, server: *std.Io.net.Server, allocator: std.mem.Allocator, queue: *std.Io.Queue(*Conn)) std.Io.Cancelable!void {
+    defer queue.close(io);
+    while (true) {
+        const stream = server.accept(io) catch |err| switch (err) {
+            error.Canceled => return error.Canceled,
+            else => continue,
+        };
+        const conn = Conn.init(allocator, io, stream) catch continue;
+        queue.putOne(io, conn) catch |err| switch (err) {
+            error.Closed => {
+                conn.deinit();
+                return;
+            },
+            error.Canceled => {
+                conn.deinit();
+                return error.Canceled;
+            },
+        };
+    }
+}
+
+fn handleConnections(io: std.Io, queue: *std.Io.Queue(*Conn), router: Router) std.Io.Cancelable!void {
+    var send_buffer: [65536]u8 = undefined;
+
+    while (true) {
+        const conn = queue.getOne(io) catch |err| switch (err) {
+            error.Closed => return,
+            error.Canceled => return error.Canceled,
+        };
+
+        // Close connections that have been idle longer than the timeout
+        const elapsed = conn.last_active.durationTo(std.Io.Clock.Timestamp.now(io, .real));
+        if (elapsed.raw.toMilliseconds() >= @as(i64, @intCast(keep_alive_timeout_ms))) {
+            conn.deinit();
+            continue;
+        }
+
+        var conn_writer = conn.stream.writer(io, &send_buffer);
+        var http_server: std.http.Server = .init(&conn.reader.interface, &conn_writer.interface);
+
+        var request = http_server.receiveHead() catch {
+            conn.deinit();
+            continue;
+        };
+
+        const keep_alive = router.route(io, &request, conn.arena.allocator()) catch {
+            _ = conn.arena.reset(.free_all);
+            conn.deinit();
+            continue;
+        };
+        conn_writer.interface.flush() catch {};
+        _ = conn.arena.reset(.free_all);
+
+        if (keep_alive) {
+            conn.last_active = std.Io.Clock.Timestamp.now(io, .real);
+            queue.putOne(io, conn) catch |err| switch (err) {
+                error.Closed => conn.deinit(),
+                error.Canceled => {
+                    conn.deinit();
+                    return error.Canceled;
+                },
+            };
+        } else {
+            conn.deinit();
+        }
+    }
+}
 
 /// this struct is used to parse []const u8 into a given type
 pub const Parser = struct {
     ///parse a json encoded string to a provided type
     ///will automatically find the body in an http request.
     pub fn json(T: type, allocator: std.mem.Allocator, request: *std.http.Server.Request) !T {
+        const content_length = request.head.content_length orelse return ServerError.Client;
+        if (content_length < 1) return ServerError.Client;
         const buf = try allocator.alloc(u8, 4096);
         defer allocator.free(buf);
         const reader = try request.readerExpectContinue(buf);
 
-        // Read the body
-        const body = try reader.readAlloc(allocator, request.head.content_length.?);
+        const body = try reader.readAlloc(allocator, content_length);
         defer allocator.free(body);
+        if (body.len < 1) return ServerError.Client;
 
         // Parse the JSON body - this creates a copy of the data
         const parsed = try std.json.parseFromSlice(T, allocator, body, .{
@@ -367,7 +437,7 @@ pub const Parser = struct {
         var it = request.iterateHeaders();
         var ele = it.next();
         while (ele != null) {
-            if (std.mem.eql(u8, ele.?.name, "Cookie")) {
+            if (std.ascii.eqlIgnoreCase(ele.?.name, "Cookie")) {
                 var i = std.mem.tokenizeSequence(u8, ele.?.value, "; ");
                 while (i.peek() != null) {
                     const kv = i.peek().?;
@@ -560,10 +630,10 @@ pub const Parser = struct {
         body: []const u8,
         allocator: std.mem.Allocator,
     ) ![]const u8 {
-        var temp_body = std.ArrayList(u8).empty;
+        var temp_body = try std.ArrayList(u8).initCapacity(allocator, 256);
         defer temp_body.deinit(allocator);
 
-        var new_body = std.ArrayList(u8).empty;
+        var new_body = try std.ArrayList(u8).initCapacity(allocator, 256);
         defer new_body.deinit(allocator);
         try new_body.appendSlice(allocator, body);
 

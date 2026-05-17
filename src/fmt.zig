@@ -1,4 +1,20 @@
 const std = @import("std");
+
+pub fn htmlEscape(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
+    var out = try std.ArrayList(u8).initCapacity(allocator, 256);
+    for (input) |ch| {
+        switch (ch) {
+            '<' => try out.appendSlice(allocator, "&lt;"),
+            '>' => try out.appendSlice(allocator, "&gt;"),
+            '&' => try out.appendSlice(allocator, "&amp;"),
+            '"' => try out.appendSlice(allocator, "&quot;"),
+            '\'' => try out.appendSlice(allocator, "&#39;"),
+            else => try out.append(allocator, ch),
+        }
+    }
+    return out.toOwnedSlice(allocator);
+}
+
 pub fn renderTemplate(
     io: std.Io,
     path: []const u8,
