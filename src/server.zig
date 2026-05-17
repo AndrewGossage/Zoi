@@ -57,8 +57,8 @@ fn requestKeepAlive(request: *std.http.Server.Request) bool {
 }
 
 /// a handler for a route
-/// http route paramaters have a ':' wilcards have '\*'
-/// if a requested route matches the path  and the method the callback function is called
+/// http route parameters have a ':' prefix; wildcards use '\*'
+/// if a requested route matches the path and the method the callback function is called
 pub const Route = struct {
     path: []const u8 = "/",
     method: std.http.Method = .GET,
@@ -194,9 +194,6 @@ pub fn static(c: *Context) !void {
 ///this route returns a 404 error and is called when no other route matched
 const notFound = Route{ .callback = four0four };
 
-// var buf: [256]*Conn = undefined;
-// pub var q = std.Io.Queue(*Conn).init(&buf);
-
 ///this struct is a wrapper around a std.ArrayList(Route) call Router.route to find the correct route for a request
 pub const Router = struct {
     routes: std.ArrayList(Route),
@@ -233,7 +230,7 @@ pub const Router = struct {
     }
 };
 
-/// this is here to allow or disalow the static function from serving dotfiles
+/// controls whether the static handler blocks dotfiles
 var conf: *Config = undefined;
 
 const queue_capacity: usize = 128;
@@ -245,7 +242,7 @@ pub fn isUnderPressure() bool {
     return active_connections.load(.monotonic) >= pressure_threshold;
 }
 
-/// A wrapper around std.Io.net.Server with builtin multithreading, arena based memory management and routing
+/// HTTP server using std.Io.Group and a connection queue for concurrent request handling
 pub const Server = struct {
     settings: *Config,
     io: std.Io,
@@ -421,17 +418,14 @@ pub const Parser = struct {
         defer allocator.free(body);
         if (body.len < 1) return ServerError.Client;
 
-        // Parse the JSON body - this creates a copy of the data
         const parsed = try std.json.parseFromSlice(T, allocator, body, .{
             .ignore_unknown_fields = true,
-            .allocate = .alloc_always, // Force allocation of strings
+            .allocate = .alloc_always,
         });
-
-        // Don't free parsed here - the caller needs to call parsed.deinit()
         return parsed.value;
     }
 
-    // parse cookies to a stringhashmap
+    /// parse cookies to a stringhashmap
     pub fn parseCookies(allocator: std.mem.Allocator, request: *std.http.Server.Request) !std.StringHashMap([]const u8) {
         var cookies = std.StringHashMap([]const u8).init(allocator);
         var it = request.iterateHeaders();

@@ -10,13 +10,13 @@ Rather than hiding routing, request parsing, and memory management behind a vers
 
 The entire implementation — routing, middleware, static files, templating, JSON parsing, cookie handling, and JWT verification — fits in a handful of files totalling a few hundred lines. Every piece of functionality is there because a server will likely need it.
 
-On the technical side, Zig's comptime type system lets the parser accept any struct type at the call site without runtime reflection or code generation. Each request is handled inside an arena allocator that is reset between requests, which means memory management is handled structurally rather than requiring individual frees in handler code. Worker threads are spawned at startup, failed workers are automatically restarted, and the memory and routing overhead per request is minimal.
+On the technical side, Zig's comptime type system lets the parser accept any struct type at the call site without runtime reflection or code generation. Each request is handled inside an arena allocator that is reset between requests, which means memory management is handled structurally rather than requiring individual frees in handler code. Connections are managed through an async queue — an acceptor task feeds incoming connections to a pool of worker tasks via `std.Io.Queue`, and keep-alive connections are requeued after each request rather than pinned to a single worker.
 
 ## Production Readiness
 
-Zoi has been running in production for over a year. Zoi's site is self-hosted, and benchmarks show Zoi can sustain over 10,000 requests per second against a live SQLite backend on commodity hardware. That is about 3.6x the throughput of an equivalent Bun server on the same machine, achieved through Zig's threading model and the elimination of lock contention via thread-local storage. See the [performance writeup](https://github.com/AndrewGossage/Thanatos/blob/main/pages/sql.html) for the full breakdown.
+Zoi has been running in production for over a year. Zoi's site is self-hosted, and benchmarks show Zoi can sustain over 16,000 requests per second on commodity hardware. That is well above the throughput of an equivalent Bun server on the same machine. See the [performance writeup](https://github.com/AndrewGossage/Thanatos/blob/main/pages/sql.html) for the full breakdown.
 
-The architecture is straightforward under load: a fixed thread pool accepts connections, each worker uses an arena allocator that resets between requests, and the router is a simple linear scan with no heap allocation per match. There is no runtime, no garbage collector, and no framework overhead.
+The architecture is straightforward under load: an acceptor task feeds incoming connections into a bounded `std.Io.Queue`, worker tasks drain the queue concurrently, and keep-alive connections are requeued after each request. Each worker uses an arena allocator that resets between requests, and the router is a simple linear scan with no heap allocation per match. There is no runtime, no garbage collector, and no framework overhead.
 
 Two things to know before deploying:
 
@@ -67,7 +67,7 @@ config.json   — server configuration
 |-----------|--------------------------------------|---------|
 | `address` | Bind address                         | —       |
 | `port`    | Port to listen on                    | —       |
-| `workers` | Number of worker threads             | `1`     |
+| `workers` | Number of async worker tasks         | `1`     |
 
 ## Routing
 
@@ -146,8 +146,8 @@ const decoded = try server.Parser.urlDecode(raw, c.allocator);
 ## Sending Responses
 
 ```zig
-// Plain response
-try c.request.respond(body, .{ .status = .ok, .keep_alive = false });
+// Plain response — c.keep_alive is set automatically based on the request and server load
+try c.request.respond(body, .{ .status = .ok, .keep_alive = c.keep_alive });
 
 // JSON response
 const headers = &[_]std.http.Header{
@@ -155,7 +155,7 @@ const headers = &[_]std.http.Header{
 };
 try server.sendJson(c.allocator, c.request, my_struct, .{
     .status = .ok,
-    .keep_alive = false,
+    .keep_alive = c.keep_alive,
     .extra_headers = headers,
 });
 ```
