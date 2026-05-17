@@ -633,12 +633,12 @@ pub const Parser = struct {
 
         inline for (0..encoded_values.len) |i| {
             const l = encoded_values[i];
-            var pieces = std.mem.tokenizeSequence(u8, new_body.items, l);
-            while (pieces.peek() != null) {
-                try temp_body.appendSlice(allocator, pieces.next().?);
-                if (pieces.peek() != null) {
-                    try temp_body.appendSlice(allocator, decoded_values[i]);
-                }
+            var pieces = std.mem.splitSequence(u8, new_body.items, l);
+            var first = true;
+            while (pieces.next()) |piece| {
+                if (!first) try temp_body.appendSlice(allocator, decoded_values[i]);
+                try temp_body.appendSlice(allocator, piece);
+                first = false;
             }
             new_body.clearRetainingCapacity();
             try new_body.appendSlice(allocator, temp_body.items);
